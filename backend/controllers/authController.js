@@ -23,8 +23,10 @@ function toPublicUser(user) {
     role: user.role,
     universityId: user.universityId,
     teacherId: user.teacherId,
+    className: user.className,
     universityCode: user.universityCode,
-    teacherCode: user.teacherCode
+    teacherCode: user.teacherCode,
+    subjects: user.subjects
   };
 }
 
@@ -102,13 +104,35 @@ exports.login = async (req, res, next) => {
 
 exports.me = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password').populate('subjects');
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     return res.json({ user });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.updateMe = async (req, res, next) => {
+  try {
+    const { className } = req.body;
+
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.role === 'student' && typeof className === 'string') {
+      user.className = className.trim();
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(req.user.id).select('-password').populate('subjects');
+    return res.json({ message: 'Profile updated', user: updatedUser });
   } catch (err) {
     return next(err);
   }

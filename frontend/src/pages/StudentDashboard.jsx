@@ -8,6 +8,8 @@ export default function StudentDashboard() {
   const [forms, setForms] = useState([]);
   const [requests, setRequests] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [me, setMe] = useState(null);
+  const [className, setClassName] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
   const [complaint, setComplaint] = useState('');
   const [showComplaintForm, setShowComplaintForm] = useState(false);
@@ -26,10 +28,13 @@ export default function StudentDashboard() {
         api.get('/requests?scope=sent'),
         api.get('/feedback')
       ]);
+      const meRes = await api.get('/auth/me');
 
       setForms(formsRes.data.forms || []);
       setRequests(requestsRes.data.requests || []);
       setFeedbacks(feedbackRes.data.feedbacks || []);
+      setMe(meRes.data.user || null);
+      setClassName(meRes.data.user?.className || '');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -40,6 +45,19 @@ export default function StudentDashboard() {
   useEffect(() => {
     refresh();
   }, []);
+
+  const saveClassName = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await api.patch('/auth/me', { className });
+      setPopup({ open: true, title: 'Class updated', message: 'Your class has been saved for grouped analysis.' });
+      await refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update class');
+    }
+  };
 
   const sendTeacherRequest = async (e) => {
     e.preventDefault();
@@ -97,6 +115,22 @@ export default function StudentDashboard() {
         {error && <p className="error">{error}</p>}
 
         <section className="card">
+          <h2>Your Profile</h2>
+          <p><strong>Class:</strong> {me?.className || 'Not set'}</p>
+          <form className="stack" onSubmit={saveClassName}>
+            <label htmlFor="className">Class Name</label>
+            <input
+              id="className"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g. BCA 2nd Year A"
+              required
+            />
+            <button className="btn" type="submit">Save Class</button>
+          </form>
+        </section>
+
+        <section className="card">
           <h2>Send Teacher Request</h2>
           <form className="stack" onSubmit={sendTeacherRequest}>
             <label htmlFor="teacherCode">Teacher Code</label>
@@ -133,6 +167,7 @@ export default function StudentDashboard() {
               <div>
                 <strong>{form.title}</strong>
                 <p>Type: {form.type}</p>
+                <p>{form.subjectId?.name || 'No subject'}</p>
               </div>
               <Link className="btn" to={`/forms/${form._id}`}>
                 Fill Form

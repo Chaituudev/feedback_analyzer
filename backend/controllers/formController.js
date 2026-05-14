@@ -1,6 +1,7 @@
 const Form = require('../models/Form');
 const User = require('../models/User');
 const University = require('../models/University');
+const Subject = require('../models/Subject');
 const { isNonEmptyString, isValidObjectId } = require('../utils/validators');
 const { getTemplateList, getTemplate } = require('../data/formTemplates');
 
@@ -116,6 +117,14 @@ exports.createForm = async (req, res, next) => {
       return res.status(400).json({ error: 'assignedTeacher is required' });
     }
 
+    let subject = null;
+    if (isValidObjectId(req.body.subjectId)) {
+      subject = await Subject.findById(req.body.subjectId);
+      if (!subject || String(subject.universityId) !== String(university._id)) {
+        return res.status(403).json({ error: 'Subject does not belong to your university' });
+      }
+    }
+
     const teacher = await User.findById(assignedTeacher);
     if (!teacher || teacher.role !== 'teacher') {
       return res.status(404).json({ error: 'Assigned teacher not found' });
@@ -129,6 +138,7 @@ exports.createForm = async (req, res, next) => {
       title: title.trim(),
       questions: normalizedQuestions,
       type,
+      subjectId: subject ? subject._id : undefined,
       assignedTeacher: teacher ? teacher._id : null,
       createdBy: req.user.id,
       isActive: true
@@ -164,6 +174,7 @@ exports.getForms = async (req, res, next) => {
 
     const forms = await Form.find(query)
       .populate('assignedTeacher', 'name email teacherCode')
+      .populate('subjectId', 'name code')
       .sort({ createdAt: -1 });
 
     return res.json({ forms });
@@ -177,7 +188,9 @@ exports.getFormById = async (req, res, next) => {
       return res.status(400).json({ error: 'Valid formId is required' });
     }
 
-    const form = await Form.findById(formId).populate('assignedTeacher', 'name email teacherCode');
+    const form = await Form.findById(formId)
+      .populate('assignedTeacher', 'name email teacherCode')
+      .populate('subjectId', 'name code');
 
     if (!form || !form.isActive) {
       return res.status(404).json({ error: 'Form not found' });

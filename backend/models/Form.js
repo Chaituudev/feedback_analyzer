@@ -8,6 +8,7 @@ const formSchema = new mongoose.Schema({
     min: { type: Number, min: 1, default: 1 },
     max: { type: Number, min: 1, default: 5 }
   },
+  subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
   assignedTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   isActive: { type: Boolean, default: true }

@@ -1,6 +1,7 @@
 const Request = require('../models/Request');
 const User = require('../models/User');
 const University = require('../models/University');
+const Subject = require('../models/Subject');
 const { generateUniqueCode } = require('../utils/codeGenerator');
 const { isNonEmptyString, isValidObjectId } = require('../utils/validators');
 
@@ -55,6 +56,68 @@ exports.teacherToUniversity = async (req, res, next) => {
 
     return res.status(201).json({ message: 'Teacher request sent', request });
   } catch (err) { next(err); }
+};
+
+exports.teacherToSubject = async (req, res, next) => {
+  try {
+    const { subjectId } = req.body;
+
+    if (!isValidObjectId(subjectId)) {
+      return res.status(400).json({ error: 'Valid subjectId is required' });
+    }
+
+    const sender = await User.findById(req.user.id);
+    if (!sender || sender.role !== 'teacher') {
+      return res.status(403).json({ error: 'Only teachers can request subjects' });
+    }
+
+    if (!sender.universityId) {
+      return res.status(400).json({ error: 'Teacher must be assigned to a university first' });
+    }
+
+    const university = await University.findById(sender.universityId).select('universityCode');
+    if (!university) {
+      return res.status(404).json({ error: 'University not found' });
+    }
+
+    const receiver = await User.findOne({ role: 'university', universityCode: university.universityCode });
+    if (!receiver) {
+      return res.status(404).json({ error: 'University account not found' });
+    }
+
+    const subject = await Subject.findById(subjectId);
+    if (!subject || !subject.isActive) {
+      return res.status(404).json({ error: 'Subject not found' });
+    }
+
+    if (String(subject.universityId) !== String(sender.universityId)) {
+      return res.status(403).json({ error: 'Subject does not belong to your university' });
+    }
+
+    const duplicate = await Request.findOne({
+      type: 'teacher_to_subject',
+      senderId: sender._id,
+      receiverId: receiver._id,
+      subjectId: subject._id,
+      status: 'pending'
+    });
+
+    if (duplicate) {
+      return res.status(409).json({ error: 'A pending subject request already exists' });
+    }
+
+    const request = await Request.create({
+      type: 'teacher_to_subject',
+      senderId: sender._id,
+      receiverId: receiver._id,
+      subjectId: subject._id,
+      status: 'pending'
+    });
+
+    return res.status(201).json({ message: 'Subject request sent', request });
+  } catch (err) {
+    return next(err);
+  }
 };
 
 exports.studentToTeacher = async (req, res, next) => {
@@ -122,6 +185,7 @@ exports.getRequests = async (req, res, next) => {
     const requests = await Request.find(query)
       .populate('senderId', 'name email role universityCode teacherCode')
       .populate('receiverId', 'name email role universityCode teacherCode')
+      .populate('subjectId', 'name code')
       .sort({ createdAt: -1 });
 
     return res.json({ requests });
@@ -210,6 +274,38 @@ exports.approveRequest = async (req, res, next) => {
           university.students.push(sender._id);
           await university.save();
         }
+      }
+    }
+
+    if (request.type === 'teacher_to_subject') {
+      if (receiver.role !== 'university' || sender.role !== 'teacher') {
+        return res.status(400).json({ error: 'Role mismatch for teacher_to_subject request' });
+      }
+
+      const subject = await Subject.findById(request.subjectId);
+      if (!subject) {
+        return res.status(404).json({ error: 'Subject not found' });
+      }
+
+      const university = await getUniversityByUser(receiver._id);
+      if (!university || String(subject.universityId) !== String(university._id)) {
+        return res.status(403).json({ error: 'Subject does not belong to the approving university' });
+      }
+
+      if (!sender.subjects.some((id) => String(id) === String(subject._id))) {
+        sender.subjects.push(subject._id);
+      }
+
+      if (!subject.teachers.some((id) => String(id) === String(sender._id))) {
+        subject.teachers.push(sender._id);
+      }
+
+      await sender.save();
+      await subject.save();
+
+      if (university && !university.subjects.some((id) => String(id) === String(subject._id))) {
+        university.subjects.push(subject._id);
+        await university.save();
       }
     }
 

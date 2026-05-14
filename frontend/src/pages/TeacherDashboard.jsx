@@ -9,6 +9,8 @@ export default function TeacherDashboard() {
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [me, setMe] = useState(null);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [analytics, setAnalytics] = useState({
     sentimentDistribution: { positive: 0, negative: 0, neutral: 0 },
@@ -21,6 +23,7 @@ export default function TeacherDashboard() {
   const [alerts, setAlerts] = useState([]);
   const [teacherCode, setTeacherCode] = useState('');
   const [universityCode, setUniversityCode] = useState('');
+  const [subjectId, setSubjectId] = useState('');
   const [isUniversityAssigned, setIsUniversityAssigned] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,12 +34,13 @@ export default function TeacherDashboard() {
     setError('');
 
     try {
-      const [requestsRes, sentRes, feedbackRes, analyticsRes, alertsRes, meRes] = await Promise.all([
+      const [requestsRes, sentRes, feedbackRes, analyticsRes, alertsRes, subjectsRes, meRes] = await Promise.all([
         api.get('/requests?scope=received&status=pending'),
         api.get('/requests?scope=sent'),
         api.get('/feedback'),
         api.get('/feedback/analytics'),
         api.get('/feedback?alertOnly=true'),
+        api.get('/subjects'),
         api.get('/auth/me')
       ]);
 
@@ -45,6 +49,8 @@ export default function TeacherDashboard() {
       setFeedbacks(feedbackRes.data.feedbacks || []);
       setAnalytics(analyticsRes.data);
       setAlerts(alertsRes.data.feedbacks || []);
+      setSubjects(subjectsRes.data.subjects || []);
+      setMe(meRes.data.user || null);
       setTeacherCode(meRes.data.user?.teacherCode || 'Pending approval');
       setIsUniversityAssigned(Boolean(meRes.data.user?.universityId));
     } catch (err) {
@@ -88,6 +94,20 @@ export default function TeacherDashboard() {
     }
   };
 
+  const submitSubjectRequest = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await api.post('/request/subject', { subjectId });
+      setSubjectId('');
+      setPopup({ open: true, title: 'Subject request sent', message: 'Your subject request is pending approval.' });
+      await refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send subject request');
+    }
+  };
+
   const leaveUniversity = async () => {
     setError('');
 
@@ -101,8 +121,10 @@ export default function TeacherDashboard() {
   };
 
   const teacherUniversityRequests = sentRequests.filter((r) => r.type === 'teacher_to_university');
+  const teacherSubjectRequests = sentRequests.filter((r) => r.type === 'teacher_to_subject');
   const complaintFeedbacks = feedbacks.filter((item) => item.formId?.type === 'complaint');
   const regularFeedbacks = feedbacks.filter((item) => item.formId?.type !== 'complaint');
+  const assignedSubjects = Array.isArray(me?.subjects) ? me.subjects : [];
 
   return (
     <div className="page">
@@ -121,6 +143,19 @@ export default function TeacherDashboard() {
           <h2>Teacher Code</h2>
           <p className="code">{teacherCode}</p>
           <p>Share this code with students so they can send requests.</p>
+        </section>
+
+        <section className="card">
+          <h2>Assigned Subjects</h2>
+          {assignedSubjects.length === 0 && <p>No subjects assigned yet.</p>}
+          {assignedSubjects.map((subject) => (
+            <div className="list-row" key={subject._id || subject.code}>
+              <div>
+                <strong>{subject.name}</strong>
+                <p>{subject.code || 'No code'}</p>
+              </div>
+            </div>
+          ))}
         </section>
 
         <section className="card">
@@ -146,6 +181,29 @@ export default function TeacherDashboard() {
             </form>
           )}
 
+          <h3>Request Subject Access</h3>
+          {isUniversityAssigned ? (
+            <form className="stack" onSubmit={submitSubjectRequest}>
+              <label htmlFor="subjectId">Subject</label>
+              <select
+                id="subjectId"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                required
+              >
+                <option value="">Select subject</option>
+                {subjects.map((subject) => (
+                  <option key={subject._id} value={subject._id}>
+                    {subject.name} ({subject.code || 'no code'})
+                  </option>
+                ))}
+              </select>
+              <button className="btn" type="submit">Request Subject</button>
+            </form>
+          ) : (
+            <p>Join a university before requesting subjects.</p>
+          )}
+
           <h3>Approval Status</h3>
           {teacherUniversityRequests.length === 0 && <p>No university requests submitted.</p>}
           {teacherUniversityRequests.map((request) => (
@@ -153,6 +211,18 @@ export default function TeacherDashboard() {
               <div>
                 <strong>{request.receiverId?.name || 'University'}</strong>
                 <p>{request.receiverId?.universityCode || '-'}</p>
+              </div>
+              <span className={`status status-${request.status}`}>{request.status}</span>
+            </div>
+          ))}
+
+          <h3>Subject Requests</h3>
+          {teacherSubjectRequests.length === 0 && <p>No subject requests submitted.</p>}
+          {teacherSubjectRequests.map((request) => (
+            <div className="list-row" key={request._id}>
+              <div>
+                <strong>{request.subjectId?.name || 'Subject'}</strong>
+                <p>{request.subjectId?.code || '-'}</p>
               </div>
               <span className={`status status-${request.status}`}>{request.status}</span>
             </div>
@@ -218,6 +288,7 @@ export default function TeacherDashboard() {
                     {studentName}
                   </button>
                   <p>{item.formId?.title || 'Untitled Form'} | Rating: {item.rating || 'N/A'}</p>
+                  <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
                   <p>{item.category || 'general'} | {item.sentiment || 'neutral'}</p>
                 </div>
                 <span>{new Date(item.createdAt).toLocaleDateString()}</span>
@@ -233,6 +304,12 @@ export default function TeacherDashboard() {
               </p>
               <p>
                 <strong>Form:</strong> {selectedFeedback.formId?.title || 'Untitled Form'}
+              </p>
+              <p>
+                <strong>Subject:</strong> {selectedFeedback.subjectId?.name || selectedFeedback.formId?.subjectId?.name || 'No subject'}
+              </p>
+              <p>
+                <strong>Class:</strong> {selectedFeedback.className || 'Unassigned'}
               </p>
               <p>
                 <strong>Rating:</strong> {selectedFeedback.rating || 'N/A'}
@@ -268,6 +345,7 @@ export default function TeacherDashboard() {
                 <div>
                   <strong>{item.studentId?.name || 'Anonymous Student'}</strong>
                   <p>{complaintText}</p>
+                  <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
                   <p>{item.category || 'general'} | {item.sentiment || 'neutral'}</p>
                   <p>{item.suggestion || 'No suggestion generated'}</p>
                 </div>
@@ -285,6 +363,7 @@ export default function TeacherDashboard() {
               <div>
                 <strong>{item.formId?.title || 'Untitled Form'}</strong>
                 <p>{item.category} | {item.sentiment}</p>
+                <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
                 <p>{item.suggestion || 'No suggestion generated'}</p>
                 {Array.isArray(item.alertReasons) && item.alertReasons.length > 0 && (
                   <p>{item.alertReasons.join(' | ')}</p>

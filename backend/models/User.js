@@ -7,8 +7,10 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['university', 'teacher', 'student'], required: true },
   universityId: { type: mongoose.Schema.Types.ObjectId, ref: 'University' },
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  className: { type: String, trim: true },
   universityCode: { type: String, unique: true, sparse: true },
   teacherCode: { type: String, unique: true, sparse: true },
+  subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 

@@ -4,6 +4,8 @@ const feedbackSchema = new mongoose.Schema({
   formId: { type: mongoose.Schema.Types.ObjectId, ref: 'Form', required: true },
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+  className: { type: String, trim: true },
   rating: { type: Number, min: 1, max: 5 },
   answers: [{ type: mongoose.Schema.Types.Mixed, required: true }],
   rawText: { type: String, default: '' },

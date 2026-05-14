@@ -2,6 +2,7 @@ const Feedback = require('../models/Feedback');
 const Form = require('../models/Form');
 const User = require('../models/User');
 const University = require('../models/University');
+const Subject = require('../models/Subject');
 const { isValidObjectId, isNonEmptyString } = require('../utils/validators');
 const { analyzeFeedbackWithModel } = require('../services/aiNlpEngine');
 
@@ -116,6 +117,14 @@ async function getTeacherScopeByUniversityUser(userId) {
   return teachers.map((t) => t._id);
 }
 
+function normalizeClassName(className) {
+  if (!isNonEmptyString(className)) {
+    return 'Unassigned';
+  }
+
+  return className.trim();
+}
+
 function sentimentToRating(sentiment) {
   if (sentiment === 'positive') return 5;
   if (sentiment === 'negative') return 2;
@@ -171,7 +180,7 @@ exports.submitFeedback = async (req, res, next) => {
       return res.status(400).json({ error: 'Valid formId is required' });
     }
 
-    const student = await User.findById(req.user.id).select('role teacherId');
+    const student = await User.findById(req.user.id).select('role teacherId className');
     if (!student || student.role !== 'student') {
       return res.status(403).json({ error: 'Only students can submit feedback' });
     }
@@ -243,6 +252,8 @@ exports.submitFeedback = async (req, res, next) => {
       formId,
       studentId: student._id,
       teacherId: resolvedTeacherId,
+      subjectId: form.subjectId || undefined,
+      className: normalizeClassName(student.className),
       rating: normalizedRating,
       answers: normalizedAnswers,
       rawText,
@@ -267,7 +278,7 @@ exports.submitComplaint = async (req, res, next) => {
       return res.status(400).json({ error: 'complaint is required' });
     }
 
-    const student = await User.findById(req.user.id).select('role teacherId');
+    const student = await User.findById(req.user.id).select('role teacherId className');
     if (!student || student.role !== 'student') {
       return res.status(403).json({ error: 'Only students can submit complaints' });
     }
@@ -295,6 +306,7 @@ exports.submitComplaint = async (req, res, next) => {
       formId: complaintForm._id,
       studentId: student._id,
       teacherId: teacher._id,
+      className: normalizeClassName(student.className),
       answers: normalizedAnswers,
       rawText,
       sentiment,
@@ -360,7 +372,8 @@ exports.getFeedbacks = async (req, res, next) => {
     }
 
     const feedbacks = await Feedback.find(query)
-      .populate('formId', 'title type')
+      .populate('formId', 'title type subjectId')
+      .populate('subjectId', 'name code')
       .populate('teacherId', 'name email teacherCode')
       .populate('studentId', 'name email')
       .sort({ createdAt: -1 });
@@ -377,6 +390,8 @@ exports.getFeedbacks = async (req, res, next) => {
           formId: item.formId,
           studentId: hideStudentIdentity ? null : item.studentId,
           teacherId: item.teacherId,
+          subjectId: item.subjectId || item.formId?.subjectId || null,
+          className: item.className || 'Unassigned',
           rating: item.rating,
           complaintText,
           sentiment: item.sentiment,
@@ -446,6 +461,44 @@ exports.getAnalytics = async (req, res, next) => {
     const alertCount = await Feedback.countDocuments({ ...match, alertFlag: true });
     const totalFeedback = await Feedback.countDocuments(match);
 
+    const subjectAgg = await Feedback.aggregate([
+      { $match: match },
+      { $group: { _id: '$subjectId', count: { $sum: 1 } } }
+    ]);
+
+    const classAgg = await Feedback.aggregate([
+      { $match: match },
+      { $group: { _id: '$className', count: { $sum: 1 } } }
+    ]);
+
+    const questionAgg = await Feedback.aggregate([
+      { $match: match },
+      { $unwind: '$answers' },
+      {
+        $group: {
+          _id: '$answers.question',
+          responseCount: { $sum: 1 },
+          ratingCount: {
+            $sum: {
+              $cond: [{ $eq: ['$answers.answerType', 'rating'] }, 1, 0]
+            }
+          },
+          averageRating: {
+            $avg: {
+              $cond: [{ $eq: ['$answers.answerType', 'rating'] }, { $toDouble: '$answers.answer' }, null]
+            }
+          }
+        }
+      },
+      { $sort: { responseCount: -1, _id: 1 } }
+    ]);
+
+    const subjectIds = subjectAgg.filter((row) => row._id).map((row) => row._id);
+    const subjectDocs = subjectIds.length > 0
+      ? await Subject.find({ _id: { $in: subjectIds } }).select('name code')
+      : [];
+    const subjectMap = new Map(subjectDocs.map((subject) => [String(subject._id), subject]));
+
     const sentimentDistribution = { positive: 0, negative: 0, neutral: 0 };
     sentimentAgg.forEach((row) => {
       if (Object.prototype.hasOwnProperty.call(sentimentDistribution, row._id)) {
@@ -459,6 +512,29 @@ exports.getAnalytics = async (req, res, next) => {
         categoryDistribution[row._id] = row.count;
       }
     });
+
+    const subjectDistribution = subjectAgg.map((row) => {
+      const subject = row._id ? subjectMap.get(String(row._id)) : null;
+
+      return {
+        subjectId: row._id,
+        subjectName: subject?.name || 'Unassigned',
+        subjectCode: subject?.code || '',
+        count: row.count
+      };
+    });
+
+    const classDistribution = classAgg.map((row) => ({
+      className: row._id || 'Unassigned',
+      count: row.count
+    }));
+
+    const questionAnalysis = questionAgg.map((row) => ({
+      question: row._id,
+      responseCount: row.responseCount,
+      ratingCount: row.ratingCount,
+      averageRating: row.averageRating ? Number(row.averageRating.toFixed(2)) : null
+    }));
 
     const feedbackTrends = trendAgg.map((row) => ({ date: row._id, count: row.count }));
 
@@ -477,6 +553,9 @@ exports.getAnalytics = async (req, res, next) => {
     return res.json({
       sentimentDistribution,
       categoryDistribution,
+      subjectDistribution,
+      classDistribution,
+      questionAnalysis,
       feedbackTrends,
       alertCount,
       totalFeedback,

@@ -10,20 +10,26 @@ import api from '../services/api';
 const initialFormState = {
   title: '',
   questions: [{ text: '', answerType: 'paragraph', ratingScale: { min: '1', max: '5' } }],
-  assignedTeacher: ''
+  assignedTeacher: '',
+  subjectId: ''
 };
 
 export default function UniversityDashboard() {
   const [requests, setRequests] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [forms, setForms] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [teacherFeedback, setTeacherFeedback] = useState([]);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [universityCode, setUniversityCode] = useState('');
+  const [subjectName, setSubjectName] = useState('');
   const [analytics, setAnalytics] = useState({
     sentimentDistribution: { positive: 0, negative: 0, neutral: 0 },
     categoryDistribution: { teaching: 0, infrastructure: 0, 'course content': 0, general: 0 },
+    subjectDistribution: [],
+    classDistribution: [],
+    questionAnalysis: [],
     feedbackTrends: [],
     alertCount: 0,
     totalFeedback: 0
@@ -48,6 +54,7 @@ export default function UniversityDashboard() {
         api.get('/feedback'),
         api.get('/form')
       ]);
+      const subjectsRes = await api.get('/subjects');
 
       setRequests(requestsRes.data.requests || []);
       setAnalytics(analyticsRes.data);
@@ -55,6 +62,7 @@ export default function UniversityDashboard() {
       setUniversityCode(meRes.data?.user?.universityCode || 'Not available');
       setFeedbacks(feedbackRes.data.feedbacks || []);
       setForms(formsRes.data.forms || []);
+      setSubjects(subjectsRes.data.subjects || []);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -68,6 +76,11 @@ export default function UniversityDashboard() {
 
   const pendingTeacherRequests = useMemo(
     () => requests.filter((r) => r.type === 'teacher_to_university' && r.status === 'pending'),
+    [requests]
+  );
+
+  const pendingSubjectRequests = useMemo(
+    () => requests.filter((r) => r.type === 'teacher_to_subject' && r.status === 'pending'),
     [requests]
   );
 
@@ -135,7 +148,8 @@ export default function UniversityDashboard() {
         title: formState.title,
         type: 'public',
         questions,
-        assignedTeacher: formState.assignedTeacher
+        assignedTeacher: formState.assignedTeacher,
+        subjectId: formState.subjectId
       });
 
       setPopup({ open: true, title: 'Form created', message: 'Your feedback form is now live.' });
@@ -196,8 +210,23 @@ export default function UniversityDashboard() {
         ...q,
         ratingScale: q.ratingScale || { min: '1', max: '5' }
       })),
-      assignedTeacher: formState.assignedTeacher || ''
+      assignedTeacher: formState.assignedTeacher || '',
+      subjectId: formState.subjectId || ''
     });
+  };
+
+  const createSubject = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await api.post('/subjects', { name: subjectName });
+      setPopup({ open: true, title: 'Subject created', message: 'The new subject is now available in the list.' });
+      setSubjectName('');
+      await refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create subject');
+    }
   };
 
   const loadTeacherFeedback = async (teacher) => {
@@ -236,6 +265,34 @@ export default function UniversityDashboard() {
           <h2>University Code</h2>
           <p className="code">{universityCode || 'Loading...'}</p>
           <p>Share this code with teachers so they can send a join request.</p>
+        </section>
+
+        <section className="card">
+          <h2>Subjects</h2>
+          <p><strong>Total Subjects:</strong> {subjects.length}</p>
+          <form className="stack" onSubmit={createSubject}>
+            <label htmlFor="subjectName">New Subject</label>
+            <input
+              id="subjectName"
+              value={subjectName}
+              onChange={(e) => setSubjectName(e.target.value)}
+              placeholder="e.g. Database Systems"
+              required
+            />
+            <button className="btn" type="submit">Add Subject</button>
+          </form>
+          <div className="stack" style={{ marginTop: '1rem' }}>
+            {subjects.length === 0 && <p>No subjects created yet.</p>}
+            {subjects.map((subject) => (
+              <div className="list-row" key={subject._id}>
+                <div>
+                  <strong>{subject.name}</strong>
+                  <p>{subject.code || 'No code'}</p>
+                </div>
+                <span>{Array.isArray(subject.teachers) ? subject.teachers.length : 0} teacher(s)</span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="card">
@@ -380,6 +437,20 @@ export default function UniversityDashboard() {
                 ))}
               </select>
 
+              <label htmlFor="subjectId">Assign Subject</label>
+              <select
+                id="subjectId"
+                value={formState.subjectId}
+                onChange={(e) => setFormState((prev) => ({ ...prev, subjectId: e.target.value }))}
+              >
+                <option value="">Select subject</option>
+                {subjects.map((subject) => (
+                  <option key={subject._id} value={subject._id}>
+                    {subject.name} ({subject.code || 'no code'})
+                  </option>
+                ))}
+              </select>
+
               <div className="row-actions">
                 <button className="btn" type="submit">Create Form</button>
                 <button
@@ -404,8 +475,30 @@ export default function UniversityDashboard() {
               <div>
                 <strong>{form.title}</strong>
                 <p>{(form.questions || []).length} question(s)</p>
+                <p>{form.subjectId?.name || 'No subject'}</p>
               </div>
               <span>{form.assignedTeacher?.name || 'Unassigned'}</span>
+            </div>
+          ))}
+        </section>
+
+        <section className="card">
+          <h2>Subject Requests</h2>
+          {pendingSubjectRequests.length === 0 && <p>No subject requests pending.</p>}
+          {pendingSubjectRequests.map((request) => (
+            <div className="list-row" key={request._id}>
+              <div>
+                <strong>{request.senderId?.name}</strong>
+                <p>{request.subjectId?.name || 'Unknown subject'}</p>
+              </div>
+              <div className="row-actions">
+                <button className="btn" onClick={() => onAction('/approve', request._id)} type="button">
+                  Approve
+                </button>
+                <button className="btn btn-danger" onClick={() => onAction('/reject', request._id)} type="button">
+                  Reject
+                </button>
+              </div>
             </div>
           ))}
         </section>
@@ -445,6 +538,39 @@ export default function UniversityDashboard() {
         <SentimentPieChart distribution={analytics.sentimentDistribution} />
         <CategoryChart distribution={analytics.categoryDistribution} />
         <TrendLineChart trends={analytics.feedbackTrends} />
+
+        <section className="card">
+          <h2>Grouped Analysis</h2>
+          <h3>By Subject</h3>
+          {analytics.subjectDistribution?.length === 0 && <p>No subject data yet.</p>}
+          {analytics.subjectDistribution?.map((item) => (
+            <div className="list-row" key={`${item.subjectName}-${item.subjectCode}`}>
+              <strong>{item.subjectName}</strong>
+              <span>{item.count}</span>
+            </div>
+          ))}
+
+          <h3>By Class</h3>
+          {analytics.classDistribution?.length === 0 && <p>No class data yet.</p>}
+          {analytics.classDistribution?.map((item) => (
+            <div className="list-row" key={item.className}>
+              <strong>{item.className}</strong>
+              <span>{item.count}</span>
+            </div>
+          ))}
+
+          <h3>By Question</h3>
+          {analytics.questionAnalysis?.length === 0 && <p>No question data yet.</p>}
+          {analytics.questionAnalysis?.map((item) => (
+            <div className="list-row" key={item.question}>
+              <div>
+                <strong>{item.question}</strong>
+                <p>{item.responseCount} response(s)</p>
+              </div>
+              <span>{item.averageRating != null ? `Avg ${item.averageRating}` : 'Text'}</span>
+            </div>
+          ))}
+        </section>
 
         <section className="card">
           <h2>Complaints</h2>

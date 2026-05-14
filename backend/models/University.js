@@ -4,6 +4,7 @@ const universitySchema = new mongoose.Schema({
   name: { type: String, required: true },
   universityCode: { type: String, required: true, unique: true },
   teachers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 

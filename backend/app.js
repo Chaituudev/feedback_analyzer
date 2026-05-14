@@ -15,11 +15,13 @@ const authRoutes = require('./routes/auth');
 const requestRoutes = require('./routes/request');
 const formRoutes = require('./routes/form');
 const feedbackRoutes = require('./routes/feedback');
+const subjectRoutes = require('./routes/subject');
 const testRoutes = require('./routes/test');
 
 app.use('/auth', authRoutes);
 app.use('/form', formRoutes);
 app.use('/feedback', feedbackRoutes);
+app.use('/subjects', subjectRoutes);
 app.use('/test', testRoutes);
 app.use('/', requestRoutes);
 
