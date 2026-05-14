@@ -42,11 +42,3 @@ temp/
 # Optional local artifacts
 *.sqlite
 *.db
-
-# Python virtual environments and caches
-venv/
-.venv/
-**/venv/
-**/.venv/
-__pycache__/
-*.pyc
