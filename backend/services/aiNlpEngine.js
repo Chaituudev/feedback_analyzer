@@ -156,6 +156,15 @@ function buildSuggestion({ category, text, sentiment }) {
   return 'Collect more detailed feedback and run a follow-up review to identify improvement opportunities.';
 }
 
+function determineUrgentSentiment(text, baseSentiment) {
+  const urgentReasons = extractUrgentReasons(text);
+  if (urgentReasons.length > 0) {
+    return 'negative';
+  }
+
+  return baseSentiment;
+}
+
 function ratingToSentiment(rating) {
   if (rating === null) {
     return null;
@@ -187,7 +196,7 @@ function inferSentimentFromRatingAndText(text, rating, sentiment) {
   return sentiment;
 }
 
-async function analyzeWithGroq(text, rating) {
+async function analyzeWithGroq(text, rating, feedbackType) {
   const axios = require('axios');
 
   const response = await axios.post(
@@ -199,13 +208,14 @@ async function analyzeWithGroq(text, rating) {
       messages: [
         {
           role: 'system',
-          content: 'You analyze student feedback for a university dashboard. Return only JSON with keys sentiment, category, suggestion, alertFlag, alertReasons. sentiment must be positive, negative, or neutral. category must be teaching, infrastructure, course content, or general. alertReasons must be an array of short strings.'
+          content: 'You analyze student feedback for a university dashboard. Return only JSON with keys sentiment, category, suggestion, alertFlag, alertReasons. sentiment must be positive, negative, or neutral. category must be teaching, infrastructure, course content, or general. If the feedback contains harassment, abuse, threats, violence, discrimination, unsafe conditions, or other serious complaint language, sentiment must be negative and alertFlag should be true. alertReasons must be an array of short strings.'
         },
         {
           role: 'user',
           content: JSON.stringify({
             text,
             rating,
+            feedbackType: feedbackType || 'feedback',
             ratingMeaning: '1-2 is negative, 3 is neutral, 4-5 is positive',
             categories: CATEGORY_LABELS
           })
@@ -288,9 +298,10 @@ function fallbackAnalyze(text) {
   };
 }
 
-async function analyzeFeedbackWithModel(rawText, rawRating) {
+async function analyzeFeedbackWithModel(rawText, rawRating, options = {}) {
   const text = normalizeWhitespace(rawText);
   const rating = normalizeRating(rawRating);
+  const feedbackType = String(options.feedbackType || 'feedback').toLowerCase();
   if (!text) {
     return {
       sentiment: 'neutral',
@@ -306,8 +317,11 @@ async function analyzeFeedbackWithModel(rawText, rawRating) {
 
   if (GROQ_API_KEY) {
     try {
-      const groqAnalysis = await analyzeWithGroq(text, rating);
-      const finalSentiment = inferSentimentFromRatingAndText(text, rating, groqAnalysis.sentiment);
+      const groqAnalysis = await analyzeWithGroq(text, rating, feedbackType);
+      const finalSentiment = determineUrgentSentiment(
+        text,
+        inferSentimentFromRatingAndText(text, rating, groqAnalysis.sentiment)
+      );
 
       return {
         sentiment: finalSentiment,
@@ -328,7 +342,10 @@ async function analyzeFeedbackWithModel(rawText, rawRating) {
     ? await modelAnalyze(text).catch(() => fallbackAnalyze(text))
     : fallbackAnalyze(text);
 
-  const finalSentiment = inferSentimentFromRatingAndText(text, rating, analysis.sentiment);
+  const finalSentiment = determineUrgentSentiment(
+    text,
+    inferSentimentFromRatingAndText(text, rating, analysis.sentiment)
+  );
 
   const alertReasons = extractUrgentReasons(text);
   const suggestion = buildSuggestion({

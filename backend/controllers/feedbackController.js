@@ -245,7 +245,7 @@ exports.submitFeedback = async (req, res, next) => {
 
     const rawText = buildRawText(normalizedAnswers);
 
-    const analysis = await analyzeFeedbackWithModel(rawText, normalizedRating);
+    const analysis = await analyzeFeedbackWithModel(rawText, normalizedRating, { feedbackType: 'feedback' });
     const { sentiment, category, suggestion, alertFlag, alertReasons } = analysis;
 
     const feedback = new Feedback({
@@ -298,7 +298,7 @@ exports.submitComplaint = async (req, res, next) => {
     }];
 
     const rawText = buildRawText(normalizedAnswers);
-    const analysis = await analyzeFeedbackWithModel(rawText);
+    const analysis = await analyzeFeedbackWithModel(rawText, null, { feedbackType: 'complaint' });
     const { sentiment, category, suggestion, alertFlag, alertReasons } = analysis;
     const complaintForm = await getOrCreateComplaintForm(student._id, teacher._id);
 
