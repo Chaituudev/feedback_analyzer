@@ -13,7 +13,12 @@ const { generateUniqueCode } = require('./utils/codeGenerator');
 
 async function seedDatabase() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const mongoUri = process.env.MONGO_URI_ATLAS || process.env.MONGO_URI;
+    if (!mongoUri) {
+      throw new Error('MONGO_URI_ATLAS or MONGO_URI is required. Set it in the root .env or deployment env vars.');
+    }
+
+    await mongoose.connect(mongoUri);
     console.log('✅ Connected to MongoDB');
     
     console.log('🔄 Clearing existing data...');

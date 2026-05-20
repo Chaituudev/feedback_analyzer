@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 const app = express();
 
@@ -28,6 +29,21 @@ app.use('/', requestRoutes);
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'backend' });
 });
+
+const shouldServeFrontend = process.env.SERVE_FRONTEND === 'true' || process.env.NODE_ENV === 'production';
+const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
+
+if (shouldServeFrontend && fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+
+  // SPA fallback: serve index.html on browser refresh for client-side routes.
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET') return next();
+    const accept = String(req.headers.accept || '');
+    if (!accept.includes('text/html')) return next();
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
