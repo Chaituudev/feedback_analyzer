@@ -8,7 +8,12 @@ MONGO_URI=mongodb://127.0.0.1:27017/feedback_analyzer
 JWT_SECRET=replace_with_strong_secret
 AI_SERVICE_URL=http://localhost:8000
 PORT=5000
+ANALYSIS_ENGINE=heuristic
+GROQ_API_KEY=your_groq_api_key_optional
+GROQ_MODEL=llama-3.1-8b-instant
 ```
+
+Use `GROQ_API_KEY` to enable Groq-based analysis. If it is not set, the backend uses local heuristics and still treats low ratings as negative sentiment.
 
 ## Run
 

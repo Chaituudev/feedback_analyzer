@@ -217,11 +217,6 @@ exports.submitFeedback = async (req, res, next) => {
       }
     }
 
-    const rawText = buildRawText(normalizedAnswers);
-
-    const analysis = await analyzeFeedbackWithModel(rawText);
-    const { sentiment, category, suggestion, alertFlag, alertReasons } = analysis;
-
     const ratingQuestions = Array.isArray(form.questions)
       ? form.questions.map((question, index) => normalizeQuestion(question, index)).filter((question) => question.answerType === 'rating')
       : [];
@@ -247,6 +242,11 @@ exports.submitFeedback = async (req, res, next) => {
         return res.status(400).json({ error: `rating must be between ${ratingMin} and ${ratingMax}` });
       }
     }
+
+    const rawText = buildRawText(normalizedAnswers);
+
+    const analysis = await analyzeFeedbackWithModel(rawText, normalizedRating);
+    const { sentiment, category, suggestion, alertFlag, alertReasons } = analysis;
 
     const feedback = new Feedback({
       formId,

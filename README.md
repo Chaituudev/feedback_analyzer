@@ -52,9 +52,13 @@ JWT_SECRET=replace_with_strong_secret
 AI_SERVICE_URL=http://localhost:8000
 PORT=5000
 ANALYSIS_ENGINE=heuristic
+GROQ_API_KEY=your_groq_api_key_optional
+GROQ_MODEL=llama-3.1-8b-instant
 ```
 
 Use `ANALYSIS_ENGINE=heuristic` in production on low-memory hosts. Set `ANALYSIS_ENGINE=transformers` only if the deployment has enough RAM for the Xenova model weights.
+If `GROQ_API_KEY` is set, feedback analysis will use Groq first and fall back to local logic when the API is unavailable.
+Low ratings now influence the stored sentiment, so a 1-2 score will be treated as negative even if the written comment is vague.
 
 ## Core Backend Endpoints
 

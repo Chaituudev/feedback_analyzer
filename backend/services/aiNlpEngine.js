@@ -8,6 +8,8 @@ const CATEGORY_CONFIDENCE_THRESHOLD = 0.45;
 const ANALYSIS_ENGINE = String(process.env.ANALYSIS_ENGINE || '').trim().toLowerCase();
 const USE_TRANSFORMER_MODEL = ANALYSIS_ENGINE === 'transformers'
   || (ANALYSIS_ENGINE !== 'heuristic' && process.env.NODE_ENV !== 'production');
+const GROQ_API_KEY = String(process.env.GROQ_API_KEY || '').trim();
+const GROQ_MODEL = String(process.env.GROQ_MODEL || 'llama-3.1-8b-instant').trim();
 
 const URGENT_KEYWORDS = [
   'harassment',
@@ -25,6 +27,23 @@ const URGENT_KEYWORDS = [
 ];
 
 let pipelinesPromise;
+
+function normalizeRating(rawRating) {
+  const rating = Number.parseFloat(rawRating);
+  if (Number.isNaN(rating)) {
+    return null;
+  }
+
+  if (rating <= 0) {
+    return 1;
+  }
+
+  if (rating > 5) {
+    return 5;
+  }
+
+  return Math.round(rating);
+}
 
 function normalizeWhitespace(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
@@ -137,6 +156,86 @@ function buildSuggestion({ category, text, sentiment }) {
   return 'Collect more detailed feedback and run a follow-up review to identify improvement opportunities.';
 }
 
+function ratingToSentiment(rating) {
+  if (rating === null) {
+    return null;
+  }
+
+  if (rating <= 2) return 'negative';
+  if (rating >= 4) return 'positive';
+  return 'neutral';
+}
+
+function inferSentimentFromRatingAndText(text, rating, sentiment) {
+  const ratingSentiment = ratingToSentiment(rating);
+  if (!ratingSentiment) {
+    return sentiment;
+  }
+
+  if (ratingSentiment === 'negative') {
+    return 'negative';
+  }
+
+  if (ratingSentiment === 'positive' && sentiment === 'neutral') {
+    return 'positive';
+  }
+
+  if (ratingSentiment === 'neutral' && sentiment === 'positive') {
+    return 'neutral';
+  }
+
+  return sentiment;
+}
+
+async function analyzeWithGroq(text, rating) {
+  const axios = require('axios');
+
+  const response = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model: GROQ_MODEL,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'You analyze student feedback for a university dashboard. Return only JSON with keys sentiment, category, suggestion, alertFlag, alertReasons. sentiment must be positive, negative, or neutral. category must be teaching, infrastructure, course content, or general. alertReasons must be an array of short strings.'
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            text,
+            rating,
+            ratingMeaning: '1-2 is negative, 3 is neutral, 4-5 is positive',
+            categories: CATEGORY_LABELS
+          })
+        }
+      ]
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    }
+  );
+
+  const content = response?.data?.choices?.[0]?.message?.content || '{}';
+  const parsed = JSON.parse(content);
+
+  return {
+    sentiment: ['positive', 'negative', 'neutral'].includes(parsed.sentiment) ? parsed.sentiment : 'neutral',
+    category: CATEGORY_LABELS.includes(parsed.category) ? parsed.category : 'general',
+    suggestion: typeof parsed.suggestion === 'string' && parsed.suggestion.trim()
+      ? parsed.suggestion.trim()
+      : buildSuggestion({ category: parsed.category || 'general', text, sentiment: parsed.sentiment || 'neutral' }),
+    alertFlag: Boolean(parsed.alertFlag),
+    alertReasons: Array.isArray(parsed.alertReasons) ? parsed.alertReasons.map((reason) => String(reason).trim()).filter(Boolean) : [],
+    source: 'groq'
+  };
+}
+
 async function getPipelines() {
   if (pipelinesPromise) {
     return pipelinesPromise;
@@ -189,8 +288,9 @@ function fallbackAnalyze(text) {
   };
 }
 
-async function analyzeFeedbackWithModel(rawText) {
+async function analyzeFeedbackWithModel(rawText, rawRating) {
   const text = normalizeWhitespace(rawText);
+  const rating = normalizeRating(rawRating);
   if (!text) {
     return {
       sentiment: 'neutral',
@@ -204,19 +304,41 @@ async function analyzeFeedbackWithModel(rawText) {
     };
   }
 
+  if (GROQ_API_KEY) {
+    try {
+      const groqAnalysis = await analyzeWithGroq(text, rating);
+      const finalSentiment = inferSentimentFromRatingAndText(text, rating, groqAnalysis.sentiment);
+
+      return {
+        sentiment: finalSentiment,
+        category: groqAnalysis.category,
+        suggestion: groqAnalysis.suggestion,
+        alertFlag: groqAnalysis.alertFlag || extractUrgentReasons(text).length > 0,
+        alertReasons: unique([...groqAnalysis.alertReasons, ...extractUrgentReasons(text)]),
+        modelSource: groqAnalysis.source,
+        sentimentConfidence: ratingToSentiment(rating) ? 0.85 : 0.75,
+        categoryConfidence: 0.75
+      };
+    } catch (err) {
+      console.warn('Groq analysis failed, falling back to local analysis:', err.message);
+    }
+  }
+
   const analysis = USE_TRANSFORMER_MODEL
     ? await modelAnalyze(text).catch(() => fallbackAnalyze(text))
     : fallbackAnalyze(text);
+
+  const finalSentiment = inferSentimentFromRatingAndText(text, rating, analysis.sentiment);
 
   const alertReasons = extractUrgentReasons(text);
   const suggestion = buildSuggestion({
     category: analysis.category,
     text,
-    sentiment: analysis.sentiment
+    sentiment: finalSentiment
   });
 
   return {
-    sentiment: analysis.sentiment,
+    sentiment: finalSentiment,
     category: analysis.category,
     suggestion,
     alertFlag: alertReasons.length > 0,
