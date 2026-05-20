@@ -5,6 +5,9 @@ const ZERO_SHOT_MODEL = 'Xenova/bart-large-mnli';
 const POSITIVE_THRESHOLD = 0.62;
 const NEGATIVE_THRESHOLD = 0.62;
 const CATEGORY_CONFIDENCE_THRESHOLD = 0.45;
+const ANALYSIS_ENGINE = String(process.env.ANALYSIS_ENGINE || '').trim().toLowerCase();
+const USE_TRANSFORMER_MODEL = ANALYSIS_ENGINE === 'transformers'
+  || (ANALYSIS_ENGINE !== 'heuristic' && process.env.NODE_ENV !== 'production');
 
 const URGENT_KEYWORDS = [
   'harassment',
@@ -201,13 +204,9 @@ async function analyzeFeedbackWithModel(rawText) {
     };
   }
 
-  let analysis;
-
-  try {
-    analysis = await modelAnalyze(text);
-  } catch {
-    analysis = fallbackAnalyze(text);
-  }
+  const analysis = USE_TRANSFORMER_MODEL
+    ? await modelAnalyze(text).catch(() => fallbackAnalyze(text))
+    : fallbackAnalyze(text);
 
   const alertReasons = extractUrgentReasons(text);
   const suggestion = buildSuggestion({

@@ -51,7 +51,10 @@ MONGO_URI=mongodb://127.0.0.1:27017/feedback_analyzer
 JWT_SECRET=replace_with_strong_secret
 AI_SERVICE_URL=http://localhost:8000
 PORT=5000
+ANALYSIS_ENGINE=heuristic
 ```
+
+Use `ANALYSIS_ENGINE=heuristic` in production on low-memory hosts. Set `ANALYSIS_ENGINE=transformers` only if the deployment has enough RAM for the Xenova model weights.
 
 ## Core Backend Endpoints
 
