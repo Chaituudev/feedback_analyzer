@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import StatusPopup from '../components/StatusPopup';
 import FormTemplateSelector from '../components/FormTemplateSelector';
+import SentimentCircleChart from '../components/SentimentCircleChart';
 import api from '../services/api';
 
 const initialFormState = {
@@ -124,6 +125,45 @@ export default function UniversityDashboard() {
 
     return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [regularFeedbacks, manageFeedbackGroup]);
+
+  const manageFeedbackChartGroups = useMemo(() => (
+    manageFeedbackGroups.map((group) => {
+      const sentiment = { positive: 0, neutral: 0, negative: 0 };
+
+      for (const item of group.items) {
+        const sentimentKey = item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral';
+        sentiment[sentimentKey] += 1;
+      }
+
+      return {
+        ...group,
+        sentiment,
+        count: group.items.length
+      };
+    })
+  ), [manageFeedbackGroups]);
+
+  const getFeedbackDetails = (item) => {
+    const fields = [];
+
+    if (manageFeedbackGroup !== 'teacher') {
+      fields.push(item.teacherId?.name || 'Unknown teacher');
+    }
+
+    if (manageFeedbackGroup !== 'subject') {
+      fields.push(item.subjectId?.name || item.formId?.subjectId?.name || 'No subject');
+    }
+
+    if (manageFeedbackGroup !== 'class') {
+      fields.push(item.className || 'Unassigned class');
+    }
+
+    if (manageFeedbackGroup !== 'form') {
+      fields.push(item.formId?.title || 'Untitled Form');
+    }
+
+    return fields.join(' | ');
+  };
 
   const onAction = async (endpoint, requestId) => {
     setError('');
@@ -280,6 +320,7 @@ export default function UniversityDashboard() {
             <button type="button" className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
             <button type="button" className={`tab-btn ${activeTab === 'forms' ? 'active' : ''}`} onClick={() => setActiveTab('forms')}>Form Builder</button>
             <button type="button" className={`tab-btn ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>Manage Feedback</button>
+            <button type="button" className={`tab-btn ${activeTab === 'feedback-charts' ? 'active' : ''}`} onClick={() => setActiveTab('feedback-charts')}>Feedback Charts</button>
           </div>
         </section>
 
@@ -493,7 +534,7 @@ export default function UniversityDashboard() {
                       <input type="checkbox" checked={selectedFeedbackIds.includes(item._id)} onChange={() => toggleFeedbackSelection(item._id)} />
                       <div>
                         <strong>{item.formId?.title || 'Untitled Form'}</strong>
-                        <p>{item.teacherId?.name || 'Unknown teacher'} | {item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'}</p>
+                        <p>{getFeedbackDetails(item)}</p>
                         <p>{item.className || 'Unassigned class'} | {item.sentiment || 'neutral'}</p>
                       </div>
                     </div>
@@ -502,6 +543,43 @@ export default function UniversityDashboard() {
                 ))}
               </div>
             ))}
+          </section>
+        )}
+
+        {activeTab === 'feedback-charts' && (
+          <section className="card">
+            <div className="section-header">
+              <h2>Feedback Sentiment Charts</h2>
+              <span className="info">Choose a grouping to update the charts</span>
+            </div>
+
+            <div className="analysis-filters" style={{ marginBottom: '1rem' }}>
+              <label htmlFor="manageFeedbackGroupChart">Grouping</label>
+              <select
+                id="manageFeedbackGroupChart"
+                value={manageFeedbackGroup}
+                onChange={(e) => setManageFeedbackGroup(e.target.value)}
+              >
+                <option value="teacher">Teacher</option>
+                <option value="subject">Subject</option>
+                <option value="class">Class</option>
+                <option value="form">Form</option>
+              </select>
+            </div>
+
+            {manageFeedbackChartGroups.length === 0 && <p>No feedback available for charts.</p>}
+            {manageFeedbackChartGroups.length > 0 && (
+              <div className="circle-chart-grid">
+                {manageFeedbackChartGroups.map((group) => (
+                  <SentimentCircleChart
+                    key={`manage-${manageFeedbackGroup}-${group.key}`}
+                    title={group.label}
+                    count={group.count}
+                    sentiment={group.sentiment}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
       </main>

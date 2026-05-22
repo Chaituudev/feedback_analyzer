@@ -394,6 +394,82 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.circle-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.circle-chart-card {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.82);
+  display: grid;
+  gap: 0.85rem;
+  text-align: left;
+}
+
+.circle-chart-card-clickable {
+  cursor: pointer;
+}
+
+.circle-chart-title {
+  display: block;
+  font-size: 1rem;
+  color: #162034;
+}
+
+.circle-chart-wrap {
+  display: grid;
+  place-items: center;
+}
+
+.circle-chart {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.circle-chart-hole {
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.circle-chart-count {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #162034;
+  line-height: 1;
+}
+
+.circle-chart-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.circle-chart-legend {
+  justify-content: center;
+}
+
+.circle-chart-percentages {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
 .sentiment-pill {
   font-size: 0.78rem;
   font-weight: 700;

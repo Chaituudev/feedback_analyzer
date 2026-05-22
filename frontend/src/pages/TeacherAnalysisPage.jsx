@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
+import SentimentCircleChart from '../components/SentimentCircleChart';
 import api from '../services/api';
 
 const TEACHER_DIMENSIONS = [
@@ -191,65 +192,6 @@ export default function TeacherAnalysisPage() {
           </div>
         </section>
 
-        {selectedDimensions.map((dimension) => {
-          const groups = groupedBySelected[dimension] || [];
-          const maxCount = groups.length > 0 ? Math.max(...groups.map((item) => item.count)) : 1;
-
-          return (
-            <section className="card" key={dimension}>
-              <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Analysis Chart</h3>
-
-              {groups.length === 0 && <p>No analysis data for this group.</p>}
-
-              {groups.length > 0 && (
-                <div className="analysis-chart-block">
-                  {groups.map((group) => {
-                    const width = Math.max(6, Math.round((group.count / maxCount) * 100));
-                    const positivePct = group.count ? Math.round((group.sentiment.positive / group.count) * 100) : 0;
-                    const neutralPct = group.count ? Math.round((group.sentiment.neutral / group.count) * 100) : 0;
-                    const negativePct = Math.max(0, 100 - positivePct - neutralPct);
-                    return (
-                      <button
-                        type="button"
-                        className="analysis-bar-row"
-                        key={`${dimension}-${group.key}`}
-                        onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
-                      >
-                        <div className="analysis-bar-meta">
-                          <strong>{group.label}</strong>
-                          <span>{group.count} feedback(s)</span>
-                        </div>
-                        <div className="analysis-bar-track">
-                          <div className="analysis-bar-fill positive" style={{ width: `${Math.round((width * positivePct) / 100)}%` }} />
-                          <div className="analysis-bar-fill neutral" style={{ width: `${Math.round((width * neutralPct) / 100)}%` }} />
-                          <div className="analysis-bar-fill negative" style={{ width: `${Math.round((width * negativePct) / 100)}%` }} />
-                        </div>
-                        <div className="analysis-sentiment-row">
-                          <span className="sentiment-pill positive">P {group.sentiment.positive}</span>
-                          <span className="sentiment-pill neutral">N {group.sentiment.neutral}</span>
-                          <span className="sentiment-pill negative">Neg {group.sentiment.negative}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {groups.map((group) => (
-                <button
-                  type="button"
-                  className="list-row list-row-button"
-                  key={`row-${dimension}-${group.key}`}
-                  onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
-                >
-                  <strong>{group.label}</strong>
-                  <span>{group.count} feedback(s)</span>
-                </button>
-              ))}
-            </section>
-          );
-        })}
-
         <section className="card">
           <h3>Forms In Selected Group</h3>
           {!activeGroup && <p>Click any analysis group above to view all related forms.</p>}
@@ -265,6 +207,30 @@ export default function TeacherAnalysisPage() {
             </>
           )}
         </section>
+
+        {selectedDimensions.map((dimension) => {
+          const groups = groupedBySelected[dimension] || [];
+
+          return (
+            <section className="card" key={dimension}>
+              <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Sentiment Charts</h3>
+              {groups.length === 0 && <p>No analysis data for this group.</p>}
+              {groups.length > 0 && (
+                <div className="circle-chart-grid">
+                  {groups.map((group) => (
+                    <SentimentCircleChart
+                      key={`${dimension}-${group.key}`}
+                      title={group.label}
+                      count={group.count}
+                      sentiment={group.sentiment}
+                      onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })}
       </main>
     </div>
   );
