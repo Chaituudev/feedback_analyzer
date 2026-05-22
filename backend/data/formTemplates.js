@@ -51,6 +51,23 @@ const FORM_TEMPLATES = {
       { text: 'What single improvement would make the biggest difference?', answerType: 'paragraph' }
     ]
   }
+
+  ,department_feedback: {
+    title: 'Department Feedback',
+    description: 'Evaluate department teaching, facilities, and student support',
+    questions: [
+      { text: 'Are you satisfied with the teaching quality in the department?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Are the faculty members supportive and helpful?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Is the syllabus completed on time?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Are practical labs conducted properly?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Is the department environment good for learning?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Are classroom facilities satisfactory?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Are departmental activities and workshops useful?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Are study materials provided properly?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Does the department help students in placements and internships?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
+      { text: 'Would you recommend this department to other students?', answerType: 'rating', ratingScale: { min: 1, max: 5 } }
+    ]
+  }
 };
 
 module.exports = {
