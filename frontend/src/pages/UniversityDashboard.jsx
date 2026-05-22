@@ -148,8 +148,8 @@ export default function UniversityDashboard() {
         title: formState.title,
         type: 'public',
         questions,
-        assignedTeacher: formState.assignedTeacher,
-        subjectId: formState.subjectId
+        assignedTeacher: formState.assignedTeacher || undefined,
+        subjectId: formState.subjectId || undefined
       });
 
       setPopup({ open: true, title: 'Form created', message: 'Your feedback form is now live.' });
@@ -242,9 +242,31 @@ export default function UniversityDashboard() {
     }
   };
 
+  const deleteForm = async (formId) => {
+    setError('');
+
+    try {
+      await api.delete(`/form/${formId}`);
+      setPopup({ open: true, title: 'Form deleted', message: 'The form has been removed from active use.' });
+      await refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete form');
+    }
+  };
+
+  const ratingQuestions = useMemo(
+    () => analytics.questionAnalysis?.filter((item) => item.answerType === 'rating') || [],
+    [analytics.questionAnalysis]
+  );
+
+  const paragraphQuestions = useMemo(
+    () => analytics.questionAnalysis?.filter((item) => item.answerType !== 'rating') || [],
+    [analytics.questionAnalysis]
+  );
+
   return (
-    <div className="page">
-      <NavBar title="University Dashboard" />
+    <div className="page page-admin">
+      <NavBar title="Admin Dashboard" />
       <StatusPopup
         open={popup.open}
         title={popup.title}
@@ -427,7 +449,6 @@ export default function UniversityDashboard() {
                 id="assignedTeacher"
                 value={formState.assignedTeacher}
                 onChange={(e) => setFormState((prev) => ({ ...prev, assignedTeacher: e.target.value }))}
-                required
               >
                 <option value="">Select teacher</option>
                 {teachers.map((teacher) => (
@@ -477,7 +498,12 @@ export default function UniversityDashboard() {
                 <p>{(form.questions || []).length} question(s)</p>
                 <p>{form.subjectId?.name || 'No subject'}</p>
               </div>
-              <span>{form.assignedTeacher?.name || 'Unassigned'}</span>
+              <div className="row-actions">
+                <span>{form.assignedTeacher?.name || form.subjectId?.name || 'Unassigned'}</span>
+                <button type="button" className="btn btn-danger" onClick={() => deleteForm(form._id)}>
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </section>
@@ -559,15 +585,30 @@ export default function UniversityDashboard() {
             </div>
           ))}
 
-          <h3>By Question</h3>
-          {analytics.questionAnalysis?.length === 0 && <p>No question data yet.</p>}
-          {analytics.questionAnalysis?.map((item) => (
-            <div className="list-row" key={item.question}>
+          <h3>By Question Type</h3>
+          <h4>Rating Questions</h4>
+          {ratingQuestions.length === 0 && <p>No rating question data yet.</p>}
+          {ratingQuestions.map((item) => (
+            <div className="list-row" key={`${item.question}-rating`}>
               <div>
                 <strong>{item.question}</strong>
+                <p>Type: {item.answerType}</p>
                 <p>{item.responseCount} response(s)</p>
               </div>
-              <span>{item.averageRating != null ? `Avg ${item.averageRating}` : 'Text'}</span>
+              <span>{item.averageRating != null ? `Avg ${item.averageRating}` : 'No average'}</span>
+            </div>
+          ))}
+
+          <h4>Text Questions</h4>
+          {paragraphQuestions.length === 0 && <p>No text question data yet.</p>}
+          {paragraphQuestions.map((item) => (
+            <div className="list-row" key={`${item.question}-text`}>
+              <div>
+                <strong>{item.question}</strong>
+                <p>Type: {item.answerType}</p>
+                <p>{item.responseCount} response(s)</p>
+              </div>
+              <span>Text</span>
             </div>
           ))}
         </section>
@@ -616,6 +657,7 @@ export default function UniversityDashboard() {
                   <div>
                     <strong>{item.studentId?.name || 'Anonymous'}</strong>
                     <p>{item.formId?.title || 'Untitled Form'}</p>
+                    <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'}</p>
                     <p>{item.category || 'general'} | {item.sentiment || 'neutral'}</p>
                     <p>{item.suggestion || 'No suggestion generated'}</p>
                   </div>

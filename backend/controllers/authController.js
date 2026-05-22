@@ -4,12 +4,13 @@ const User = require('../models/User');
 const University = require('../models/University');
 const { generateUniqueCode } = require('../utils/codeGenerator');
 const { isNonEmptyString, normalizeEmail } = require('../utils/validators');
+const { normalizeRole } = require('../utils/roles');
 
-const ALLOWED_ROLES = ['university', 'teacher', 'student'];
+const ALLOWED_ROLES = ['admin', 'university', 'teacher', 'student'];
 
 function signToken(user) {
   return jwt.sign(
-    { id: user._id.toString(), role: user.role },
+    { id: user._id.toString(), role: normalizeRole(user.role) },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
@@ -20,10 +21,11 @@ function toPublicUser(user) {
     id: user._id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: normalizeRole(user.role),
     universityId: user.universityId,
     teacherId: user.teacherId,
     className: user.className,
+    subjectId: user.subjectId,
     universityCode: user.universityCode,
     teacherCode: user.teacherCode,
     subjects: user.subjects
@@ -57,17 +59,17 @@ exports.signup = async (req, res, next) => {
       name: name.trim(),
       email: normalizedEmail,
       password: hash,
-      role
+      role: normalizeRole(role)
     };
 
-    if (role === 'university') {
+    if (normalizeRole(role) === 'admin') {
       payload.universityCode = await generateUniqueCode(User, 'universityCode', 'UNI');
     }
 
     const user = new User(payload);
     await user.save();
 
-    if (role === 'university') {
+    if (normalizeRole(role) === 'admin') {
       await University.create({
         name: user.name,
         universityCode: user.universityCode,
@@ -98,18 +100,25 @@ exports.login = async (req, res, next) => {
     if (!match) return res.status(401).json({ error: 'Invalid credentials' });
 
     const token = signToken(user);
-    res.json({ token, role: user.role, user: toPublicUser(user) });
+    res.json({ token, role: normalizeRole(user.role), user: toPublicUser(user) });
   } catch (err) { next(err); }
 };
 
 exports.me = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('-password').populate('subjects');
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('subjects')
+      .populate('subjectId')
+      .populate({ path: 'teacherId', populate: { path: 'subjects' } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    await user.populate('universityId');
+
+    user.role = normalizeRole(user.role);
     return res.json({ user });
   } catch (err) {
     return next(err);
@@ -118,20 +127,49 @@ exports.me = async (req, res, next) => {
 
 exports.updateMe = async (req, res, next) => {
   try {
-    const { className } = req.body;
+    const { className, subjectId } = req.body;
 
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate({ path: 'teacherId', populate: { path: 'subjects' } })
+      .populate('subjects');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.role === 'student' && typeof className === 'string') {
+    if (normalizeRole(user.role) === 'student' && typeof className === 'string') {
       user.className = className.trim();
+    }
+
+    if (normalizeRole(user.role) === 'student') {
+      if (subjectId === null || subjectId === '') {
+        user.subjectId = undefined;
+      } else if (subjectId) {
+        const teacherSubjects = Array.isArray(user.teacherId?.subjects)
+          ? user.teacherId.subjects.map((item) => String(item))
+          : [];
+
+        if (!teacherSubjects.includes(String(subjectId))) {
+          return res.status(400).json({ error: 'Selected subject is not available for your teacher' });
+        }
+
+        user.subjectId = subjectId;
+      }
     }
 
     await user.save();
 
-    const updatedUser = await User.findById(req.user.id).select('-password').populate('subjects');
+    const updatedUser = await User.findById(req.user.id)
+      .select('-password')
+      .populate('subjects')
+      .populate('subjectId')
+      .populate({ path: 'teacherId', populate: { path: 'subjects' } });
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await updatedUser.populate('universityId');
+    updatedUser.role = normalizeRole(updatedUser.role);
     return res.json({ message: 'Profile updated', user: updatedUser });
   } catch (err) {
     return next(err);
@@ -142,7 +180,7 @@ exports.getUniversityTeachers = async (req, res, next) => {
   try {
     const universityUser = await User.findById(req.user.id).select('universityCode role');
 
-    if (!universityUser || universityUser.role !== 'university') {
+    if (!universityUser || normalizeRole(universityUser.role) !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
 

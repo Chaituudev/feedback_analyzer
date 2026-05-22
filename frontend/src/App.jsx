@@ -10,7 +10,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import FeedbackFormPage from './pages/FeedbackFormPage';
 
 function roleHome(role) {
-  if (role === 'university') return '/university';
+  if (role === 'admin' || role === 'university') return '/admin';
   if (role === 'teacher') return '/teacher';
   if (role === 'student') return '/student';
   return '/login';
@@ -32,10 +32,11 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
 
+      <Route path="/university" element={<Navigate to="/admin" replace />} />
       <Route
-        path="/university"
+        path="/admin"
         element={(
-          <ProtectedRoute allowedRoles={['university']}>
+          <ProtectedRoute allowedRoles={['admin', 'university']}>
             <PageErrorBoundary>
               <UniversityDashboard />
             </PageErrorBoundary>

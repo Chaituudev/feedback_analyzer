@@ -5,6 +5,7 @@ const University = require('../models/University');
 const Subject = require('../models/Subject');
 const { isValidObjectId, isNonEmptyString } = require('../utils/validators');
 const { analyzeFeedbackWithModel } = require('../services/aiNlpEngine');
+const { normalizeRole } = require('../utils/roles');
 
 function normalizeAnswers(answers) {
   if (!Array.isArray(answers)) {
@@ -104,7 +105,7 @@ function normalizeAnswersForForm(form, answers) {
 
 async function getTeacherScopeByUniversityUser(userId) {
   const universityUser = await User.findById(userId).select('role universityCode');
-  if (!universityUser || universityUser.role !== 'university') {
+  if (!universityUser || normalizeRole(universityUser.role) !== 'admin') {
     return [];
   }
 
@@ -180,7 +181,7 @@ exports.submitFeedback = async (req, res, next) => {
       return res.status(400).json({ error: 'Valid formId is required' });
     }
 
-    const student = await User.findById(req.user.id).select('role teacherId className');
+    const student = await User.findById(req.user.id).select('role teacherId className subjectId');
     if (!student || student.role !== 'student') {
       return res.status(403).json({ error: 'Only students can submit feedback' });
     }
@@ -200,6 +201,17 @@ exports.submitFeedback = async (req, res, next) => {
       return res.status(400).json({ error: 'answers must include at least one non-empty response' });
     }
 
+    const formSubjectId = form.subjectId ? String(form.subjectId) : null;
+    const studentSubjectId = student.subjectId ? String(student.subjectId) : null;
+
+    if (formSubjectId && !studentSubjectId) {
+      return res.status(400).json({ error: 'Select your subject before submitting feedback' });
+    }
+
+    if (formSubjectId && studentSubjectId && formSubjectId !== studentSubjectId) {
+      return res.status(403).json({ error: 'This form is not assigned to your selected subject' });
+    }
+
     let resolvedTeacherId = null;
     if (form.type === 'complaint') {
       resolvedTeacherId = student.teacherId || form.assignedTeacher || (isValidObjectId(teacherId) ? teacherId : null);
@@ -207,13 +219,17 @@ exports.submitFeedback = async (req, res, next) => {
         return res.status(400).json({ error: 'Complaint requires a teacher assignment (teacherId)' });
       }
     } else {
-      resolvedTeacherId = form.assignedTeacher;
-      if (!resolvedTeacherId) {
-        return res.status(400).json({ error: 'Form is not assigned to any teacher' });
+      if (form.assignedTeacher) {
+        resolvedTeacherId = form.assignedTeacher;
+        if (!student.teacherId || String(student.teacherId) !== String(resolvedTeacherId)) {
+          return res.status(403).json({ error: 'You can only submit forms assigned to your teacher' });
+        }
+      } else if (student.teacherId) {
+        resolvedTeacherId = student.teacherId;
       }
 
-      if (!student.teacherId || String(student.teacherId) !== String(resolvedTeacherId)) {
-        return res.status(403).json({ error: 'You can only submit forms assigned to your teacher' });
+      if (!resolvedTeacherId) {
+        return res.status(400).json({ error: 'Form is not assigned to any teacher' });
       }
     }
 
@@ -252,7 +268,7 @@ exports.submitFeedback = async (req, res, next) => {
       formId,
       studentId: student._id,
       teacherId: resolvedTeacherId,
-      subjectId: form.subjectId || undefined,
+      subjectId: form.subjectId || student.subjectId || undefined,
       className: normalizeClassName(student.className),
       rating: normalizedRating,
       answers: normalizedAnswers,
@@ -339,9 +355,17 @@ exports.getFeedbacks = async (req, res, next) => {
       query.teacherId = user._id;
     } else if (user.role === 'student') {
       query.studentId = user._id;
-    } else if (user.role === 'university') {
+    } else if (normalizeRole(user.role) === 'admin') {
       universityTeacherScope = await getTeacherScopeByUniversityUser(user._id);
       query.teacherId = { $in: universityTeacherScope };
+    }
+
+    if (isNonEmptyString(req.query.className)) {
+      query.className = req.query.className.trim();
+    }
+
+    if (isNonEmptyString(req.query.subjectId) && isValidObjectId(req.query.subjectId)) {
+      query.subjectId = req.query.subjectId;
     }
 
     if (isNonEmptyString(req.query.teacherId) && isValidObjectId(req.query.teacherId)) {
@@ -349,7 +373,7 @@ exports.getFeedbacks = async (req, res, next) => {
         return res.status(403).json({ error: 'Teachers can only view their own feedback' });
       }
 
-      if (user.role === 'university') {
+      if (normalizeRole(user.role) === 'admin') {
         const inScope = universityTeacherScope.some((id) => String(id) === String(req.query.teacherId));
         if (!inScope) {
           return res.status(403).json({ error: 'Teacher is outside your university scope' });
@@ -378,7 +402,7 @@ exports.getFeedbacks = async (req, res, next) => {
       .populate('studentId', 'name email')
       .sort({ createdAt: -1 });
 
-    if (user.role === 'university') {
+    if (normalizeRole(user.role) === 'admin') {
       const sanitizedFeedbacks = feedbacks.map((item) => {
         const hideStudentIdentity = item.formId?.type === 'secret';
         const complaintText = item.formId?.type === 'complaint'
@@ -425,11 +449,23 @@ exports.getAnalytics = async (req, res, next) => {
 
     if (user.role === 'teacher') {
       match.teacherId = user._id;
-    } else if (user.role === 'university') {
+    } else if (normalizeRole(user.role) === 'admin') {
       const teacherIds = await getTeacherScopeByUniversityUser(user._id);
       match.teacherId = { $in: teacherIds };
     } else {
       return res.status(403).json({ error: 'Analytics is available only for teacher and university roles' });
+    }
+
+    if (isNonEmptyString(req.query.className)) {
+      match.className = req.query.className.trim();
+    }
+
+    if (isNonEmptyString(req.query.subjectId) && isValidObjectId(req.query.subjectId)) {
+      match.subjectId = req.query.subjectId;
+    }
+
+    if (isNonEmptyString(req.query.teacherId) && isValidObjectId(req.query.teacherId)) {
+      match.teacherId = req.query.teacherId;
     }
 
     const sentimentAgg = await Feedback.aggregate([
@@ -476,7 +512,10 @@ exports.getAnalytics = async (req, res, next) => {
       { $unwind: '$answers' },
       {
         $group: {
-          _id: '$answers.question',
+          _id: {
+            question: '$answers.question',
+            answerType: '$answers.answerType'
+          },
           responseCount: { $sum: 1 },
           ratingCount: {
             $sum: {
@@ -490,7 +529,7 @@ exports.getAnalytics = async (req, res, next) => {
           }
         }
       },
-      { $sort: { responseCount: -1, _id: 1 } }
+      { $sort: { responseCount: -1, '_id.question': 1 } }
     ]);
 
     const subjectIds = subjectAgg.filter((row) => row._id).map((row) => row._id);
@@ -530,7 +569,8 @@ exports.getAnalytics = async (req, res, next) => {
     }));
 
     const questionAnalysis = questionAgg.map((row) => ({
-      question: row._id,
+      question: row._id.question,
+      answerType: row._id.answerType || 'paragraph',
       responseCount: row.responseCount,
       ratingCount: row.ratingCount,
       averageRating: row.averageRating ? Number(row.averageRating.toFixed(2)) : null

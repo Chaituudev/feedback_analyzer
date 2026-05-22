@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 
 function roleHome(role) {
-  if (role === 'university') return '/university';
+  if (role === 'admin' || role === 'university') return '/admin';
   if (role === 'teacher') return '/teacher';
   if (role === 'student') return '/student';
   return '/login';

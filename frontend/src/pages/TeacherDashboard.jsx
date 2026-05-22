@@ -127,8 +127,8 @@ export default function TeacherDashboard() {
   const assignedSubjects = Array.isArray(me?.subjects) ? me.subjects : [];
 
   return (
-    <div className="page">
-      <NavBar title="Teacher Dashboard" />
+    <div className="page page-teacher">
+      <NavBar title={me?.universityId?.name || 'University'} userLabel={me?.name || 'Teacher'} showDashboardLink={false} />
       <StatusPopup
         open={popup.open}
         title={popup.title}

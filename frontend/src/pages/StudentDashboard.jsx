@@ -10,6 +10,7 @@ export default function StudentDashboard() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [me, setMe] = useState(null);
   const [className, setClassName] = useState('');
+  const [subjectId, setSubjectId] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
   const [complaint, setComplaint] = useState('');
   const [showComplaintForm, setShowComplaintForm] = useState(false);
@@ -35,6 +36,7 @@ export default function StudentDashboard() {
       setFeedbacks(feedbackRes.data.feedbacks || []);
       setMe(meRes.data.user || null);
       setClassName(meRes.data.user?.className || '');
+      setSubjectId(meRes.data.user?.subjectId?._id || meRes.data.user?.subjectId || '');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -46,12 +48,12 @@ export default function StudentDashboard() {
     refresh();
   }, []);
 
-  const saveClassName = async (e) => {
+  const saveProfile = async (e) => {
     e.preventDefault();
     setError('');
 
     try {
-      await api.patch('/auth/me', { className });
+      await api.patch('/auth/me', { className, subjectId });
       setPopup({ open: true, title: 'Class updated', message: 'Your class has been saved for grouped analysis.' });
       await refresh();
     } catch (err) {
@@ -83,6 +85,11 @@ export default function StudentDashboard() {
     [feedbacks]
   );
 
+  const availableSubjects = useMemo(
+    () => (Array.isArray(me?.teacherId?.subjects) ? me.teacherId.subjects : []),
+    [me]
+  );
+
   const submitComplaint = async (e) => {
     e.preventDefault();
     setError('');
@@ -102,7 +109,7 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="page">
+    <div className="page page-student">
       <NavBar title="Student Dashboard" />
       <StatusPopup
         open={popup.open}
@@ -117,7 +124,7 @@ export default function StudentDashboard() {
         <section className="card">
           <h2>Your Profile</h2>
           <p><strong>Class:</strong> {me?.className || 'Not set'}</p>
-          <form className="stack" onSubmit={saveClassName}>
+          <form className="stack" onSubmit={saveProfile}>
             <label htmlFor="className">Class Name</label>
             <input
               id="className"
@@ -126,7 +133,17 @@ export default function StudentDashboard() {
               placeholder="e.g. BCA 2nd Year A"
               required
             />
-            <button className="btn" type="submit">Save Class</button>
+            <label htmlFor="subjectId">Subject</label>
+            <select id="subjectId" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+              <option value="">Select your subject</option>
+              {availableSubjects.map((subject) => (
+                <option key={subject._id} value={subject._id}>
+                  {subject.name} ({subject.code || 'no code'})
+                </option>
+              ))}
+            </select>
+            {availableSubjects.length === 0 && <p>No subjects are assigned to your teacher yet.</p>}
+            <button className="btn" type="submit">Save Profile</button>
           </form>
         </section>
 

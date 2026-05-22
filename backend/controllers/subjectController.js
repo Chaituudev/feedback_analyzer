@@ -3,6 +3,7 @@ const User = require('../models/User');
 const University = require('../models/University');
 const { generateUniqueCode } = require('../utils/codeGenerator');
 const { isNonEmptyString } = require('../utils/validators');
+const { normalizeRole } = require('../utils/roles');
 
 async function getUniversityByUser(userId) {
   const user = await User.findById(userId).select('role universityCode universityId');
@@ -11,7 +12,7 @@ async function getUniversityByUser(userId) {
     return null;
   }
 
-  if (user.role === 'university' && user.universityCode) {
+  if (normalizeRole(user.role) === 'admin' && user.universityCode) {
     return University.findOne({ universityCode: user.universityCode });
   }
 

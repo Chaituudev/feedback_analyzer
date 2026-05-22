@@ -4,13 +4,14 @@ const University = require('../models/University');
 const Subject = require('../models/Subject');
 const { isNonEmptyString, isValidObjectId } = require('../utils/validators');
 const { getTemplateList, getTemplate } = require('../data/formTemplates');
+const { normalizeRole } = require('../utils/roles');
 
 const CREATE_FORM_TYPES = ['public', 'secret'];
 const DASHBOARD_FORM_TYPES = ['public', 'secret'];
 
 async function getUniversityFromUser(userId) {
   const universityUser = await User.findById(userId).select('universityCode role');
-  if (!universityUser || universityUser.role !== 'university' || !universityUser.universityCode) {
+  if (!universityUser || normalizeRole(universityUser.role) !== 'admin' || !universityUser.universityCode) {
     return null;
   }
 
@@ -92,7 +93,8 @@ exports.createForm = async (req, res, next) => {
       title,
       questions,
       type = 'public',
-      assignedTeacher
+      assignedTeacher,
+      subjectId
     } = req.body;
 
     if (!isNonEmptyString(title) || !isNonEmptyString(type)) {
@@ -113,33 +115,48 @@ exports.createForm = async (req, res, next) => {
       return res.status(403).json({ error: 'Only university users can create forms' });
     }
 
-    if (!isValidObjectId(assignedTeacher)) {
-      return res.status(400).json({ error: 'assignedTeacher is required' });
+    const hasAssignedTeacher = isValidObjectId(assignedTeacher);
+    const hasSubject = isValidObjectId(subjectId);
+
+    if (!hasAssignedTeacher && !hasSubject) {
+      return res.status(400).json({ error: 'assignedTeacher or subjectId is required' });
     }
 
     let subject = null;
-    if (isValidObjectId(req.body.subjectId)) {
-      subject = await Subject.findById(req.body.subjectId);
+    if (hasSubject) {
+      subject = await Subject.findById(subjectId);
       if (!subject || String(subject.universityId) !== String(university._id)) {
         return res.status(403).json({ error: 'Subject does not belong to your university' });
       }
     }
 
-    const teacher = await User.findById(assignedTeacher);
-    if (!teacher || teacher.role !== 'teacher') {
-      return res.status(404).json({ error: 'Assigned teacher not found' });
+    let teacher = null;
+    if (hasAssignedTeacher) {
+      teacher = await User.findById(assignedTeacher);
+      if (!teacher || teacher.role !== 'teacher') {
+        return res.status(404).json({ error: 'Assigned teacher not found' });
+      }
+
+      if (!teacher.universityId || String(teacher.universityId) !== String(university._id)) {
+        return res.status(403).json({ error: 'Teacher does not belong to your university' });
+      }
     }
 
-    if (!teacher.universityId || String(teacher.universityId) !== String(university._id)) {
-      return res.status(403).json({ error: 'Teacher does not belong to your university' });
+    if (teacher && subject) {
+      const teacherSubjectIds = new Set((teacher.subjects || []).map((item) => String(item)));
+      if (!teacherSubjectIds.has(String(subject._id))) {
+        return res.status(403).json({ error: 'Selected subject is not assigned to this teacher' });
+      }
     }
+
+    const normalizedAssignedTeacher = teacher ? teacher._id : null;
 
     const form = await Form.create({
       title: title.trim(),
       questions: normalizedQuestions,
       type,
       subjectId: subject ? subject._id : undefined,
-      assignedTeacher: teacher ? teacher._id : null,
+      assignedTeacher: normalizedAssignedTeacher,
       createdBy: req.user.id,
       isActive: true
     });
@@ -150,7 +167,7 @@ exports.createForm = async (req, res, next) => {
 
 exports.getForms = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('role teacherId');
+    const user = await User.findById(req.user.id).select('role teacherId subjectId subjects');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -160,16 +177,27 @@ exports.getForms = async (req, res, next) => {
       type: { $in: DASHBOARD_FORM_TYPES }
     };
 
-    if (user.role === 'university') {
+    if (normalizeRole(user.role) === 'admin') {
       query.createdBy = user._id;
     } else if (user.role === 'teacher') {
-      query.assignedTeacher = user._id;
+      const subjectIds = Array.isArray(user.subjects) ? user.subjects : [];
+      query.$or = [{ assignedTeacher: user._id }];
+
+      if (subjectIds.length > 0) {
+        query.$or.push({ subjectId: { $in: subjectIds } });
+      }
     } else if (user.role === 'student') {
       if (!user.teacherId) {
         return res.json({ forms: [] });
       }
 
-      query.assignedTeacher = user.teacherId;
+      const orFilters = [{ assignedTeacher: user.teacherId }];
+
+      if (user.subjectId) {
+        orFilters.push({ subjectId: user.subjectId });
+      }
+
+      query.$or = orFilters;
     }
 
     const forms = await Form.find(query)
@@ -200,7 +228,7 @@ exports.getFormById = async (req, res, next) => {
       return res.status(403).json({ error: 'Complaint is submitted from the student dashboard' });
     }
 
-    const user = await User.findById(req.user.id).select('role teacherId');
+    const user = await User.findById(req.user.id).select('role teacherId subjectId subjects');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -209,14 +237,17 @@ exports.getFormById = async (req, res, next) => {
       ? form.assignedTeacher._id
       : form.assignedTeacher;
 
-    if (user.role === 'university' && String(form.createdBy) !== String(user._id)) {
+    if (normalizeRole(user.role) === 'admin' && String(form.createdBy) !== String(user._id)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+
+    const formSubjectId = form.subjectId && form.subjectId._id ? form.subjectId._id : form.subjectId;
 
     if (
       user.role === 'teacher' &&
       form.type !== 'complaint' &&
-      String(assignedTeacherId) !== String(user._id)
+      String(assignedTeacherId) !== String(user._id) &&
+      (!formSubjectId || !Array.isArray(user.subjects) || !user.subjects.some((subject) => String(subject) === String(formSubjectId)))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
@@ -224,12 +255,39 @@ exports.getFormById = async (req, res, next) => {
     if (
       user.role === 'student' &&
       form.type !== 'complaint' &&
-      (!user.teacherId || String(assignedTeacherId) !== String(user.teacherId))
+      (!user.teacherId || (String(assignedTeacherId) !== String(user.teacherId) && String(formSubjectId || '') !== String(user.subjectId || '')))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
     return res.json({ form });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.deleteForm = async (req, res, next) => {
+  try {
+    const { formId } = req.params;
+
+    if (!isValidObjectId(formId)) {
+      return res.status(400).json({ error: 'Valid formId is required' });
+    }
+
+    const user = await User.findById(req.user.id).select('role');
+    if (!user || normalizeRole(user.role) !== 'admin') {
+      return res.status(403).json({ error: 'Only admin users can delete forms' });
+    }
+
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Form not found' });
+    }
+
+    form.isActive = false;
+    await form.save();
+
+    return res.json({ message: 'Form deleted', formId });
   } catch (err) {
     return next(err);
   }

@@ -4,10 +4,11 @@ const University = require('../models/University');
 const Subject = require('../models/Subject');
 const { generateUniqueCode } = require('../utils/codeGenerator');
 const { isNonEmptyString, isValidObjectId } = require('../utils/validators');
+const { normalizeRole } = require('../utils/roles');
 
 async function getUniversityByUser(universityUserId) {
   const universityUser = await User.findById(universityUserId).select('universityCode role');
-  if (!universityUser || universityUser.role !== 'university' || !universityUser.universityCode) {
+  if (!universityUser || normalizeRole(universityUser.role) !== 'admin' || !universityUser.universityCode) {
     return null;
   }
 
@@ -31,7 +32,7 @@ exports.teacherToUniversity = async (req, res, next) => {
       return res.status(409).json({ error: 'Teacher is already assigned to a university' });
     }
 
-    const receiver = await User.findOne({ role: 'university', universityCode: universityCode.trim() });
+    const receiver = await User.findOne({ role: { $in: ['admin', 'university'] }, universityCode: universityCode.trim() });
     if (!receiver) {
       return res.status(404).json({ error: 'Invalid universityCode' });
     }
@@ -80,7 +81,7 @@ exports.teacherToSubject = async (req, res, next) => {
       return res.status(404).json({ error: 'University not found' });
     }
 
-    const receiver = await User.findOne({ role: 'university', universityCode: university.universityCode });
+    const receiver = await User.findOne({ role: { $in: ['admin', 'university'] }, universityCode: university.universityCode });
     if (!receiver) {
       return res.status(404).json({ error: 'University account not found' });
     }
@@ -222,7 +223,7 @@ exports.approveRequest = async (req, res, next) => {
     }
 
     if (request.type === 'teacher_to_university') {
-      if (receiver.role !== 'university' || sender.role !== 'teacher') {
+      if (normalizeRole(receiver.role) !== 'admin' || sender.role !== 'teacher') {
         return res.status(400).json({ error: 'Role mismatch for teacher_to_university request' });
       }
 
@@ -278,7 +279,7 @@ exports.approveRequest = async (req, res, next) => {
     }
 
     if (request.type === 'teacher_to_subject') {
-      if (receiver.role !== 'university' || sender.role !== 'teacher') {
+      if (normalizeRole(receiver.role) !== 'admin' || sender.role !== 'teacher') {
         return res.status(400).json({ error: 'Role mismatch for teacher_to_subject request' });
       }
 

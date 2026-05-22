@@ -37,7 +37,7 @@ async function seedDatabase() {
       name: 'Admin University',
       email: 'admin@university.com',
       password: adminPassword,
-      role: 'university',
+      role: 'admin',
       universityCode,
       universityId: university._id
     });

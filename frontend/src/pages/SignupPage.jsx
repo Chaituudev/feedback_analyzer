@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { persistSession, signup } from '../services/auth';
 
 function roleHome(role) {
-  if (role === 'university') return '/university';
+  if (role === 'admin' || role === 'university') return '/admin';
   if (role === 'teacher') return '/teacher';
   return '/student';
 }
@@ -68,7 +68,7 @@ export default function SignupPage() {
         <select id="role" value={form.role} onChange={(e) => update('role', e.target.value)}>
           <option value="student">Student</option>
           <option value="teacher">Teacher</option>
-          <option value="university">University</option>
+          <option value="admin">Admin</option>
         </select>
 
         <button className="btn" type="submit" disabled={loading}>

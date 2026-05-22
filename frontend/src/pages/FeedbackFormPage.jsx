@@ -129,6 +129,7 @@ export default function FeedbackFormPage() {
           <section className="card">
             <h2>{form.title}</h2>
             <p>Type: {form.type}</p>
+            <p>{form.subjectId?.name || 'No subject assigned'}</p>
 
             <form className="stack" onSubmit={submit}>
               {(form.questions || []).map((question, index) => {
@@ -143,6 +144,7 @@ export default function FeedbackFormPage() {
                 return (
                   <div key={`${normalizedQuestion.text}-${index}`}>
                     <label htmlFor={`q-${index}`}>{normalizedQuestion.text}</label>
+                    <p className="question-meta">Question type: {normalizedQuestion.answerType}</p>
                     {normalizedQuestion.answerType === 'rating' ? (
                       <select
                         id={`q-${index}`}

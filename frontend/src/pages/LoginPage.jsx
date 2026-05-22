@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { login, persistSession } from '../services/auth';
 
 function roleHome(role) {
-  if (role === 'university') return '/university';
+  if (role === 'admin' || role === 'university') return '/admin';
   if (role === 'teacher') return '/teacher';
   return '/student';
 }
