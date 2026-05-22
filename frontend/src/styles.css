@@ -369,12 +369,51 @@ textarea:focus {
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.22);
   overflow: hidden;
+  display: flex;
 }
 
 .analysis-bar-fill {
   height: 100%;
+}
+
+.analysis-bar-fill.positive {
+  background: #16a34a;
+}
+
+.analysis-bar-fill.neutral {
+  background: #eab308;
+}
+
+.analysis-bar-fill.negative {
+  background: #dc2626;
+}
+
+.analysis-sentiment-row {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.sentiment-pill {
+  font-size: 0.78rem;
+  font-weight: 700;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--page-accent, #1d4ed8), var(--page-accent-strong, #0f766e));
+  padding: 0.2rem 0.5rem;
+}
+
+.sentiment-pill.positive {
+  color: #14532d;
+  background: rgba(22, 163, 74, 0.16);
+}
+
+.sentiment-pill.neutral {
+  color: #713f12;
+  background: rgba(234, 179, 8, 0.2);
+}
+
+.sentiment-pill.negative {
+  color: #7f1d1d;
+  background: rgba(220, 38, 38, 0.14);
 }
 
 .stats-row {

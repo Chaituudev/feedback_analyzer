@@ -95,10 +95,13 @@ export default function TeacherAnalysisPage() {
           label,
           dimension,
           count: 0,
-          forms: new Map()
+          forms: new Map(),
+          sentiment: { positive: 0, neutral: 0, negative: 0 }
         };
 
         existing.count += 1;
+        const sentiment = item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral';
+        existing.sentiment[sentiment] += 1;
 
         const formId = toId(item.formId) || 'none-form';
         const formTitle = item.formId?.title || 'Untitled Form';
@@ -202,6 +205,9 @@ export default function TeacherAnalysisPage() {
                 <div className="analysis-chart-block">
                   {groups.map((group) => {
                     const width = Math.max(6, Math.round((group.count / maxCount) * 100));
+                    const positivePct = group.count ? Math.round((group.sentiment.positive / group.count) * 100) : 0;
+                    const neutralPct = group.count ? Math.round((group.sentiment.neutral / group.count) * 100) : 0;
+                    const negativePct = Math.max(0, 100 - positivePct - neutralPct);
                     return (
                       <button
                         type="button"
@@ -214,7 +220,14 @@ export default function TeacherAnalysisPage() {
                           <span>{group.count} feedback(s)</span>
                         </div>
                         <div className="analysis-bar-track">
-                          <div className="analysis-bar-fill" style={{ width: `${width}%` }} />
+                          <div className="analysis-bar-fill positive" style={{ width: `${Math.round((width * positivePct) / 100)}%` }} />
+                          <div className="analysis-bar-fill neutral" style={{ width: `${Math.round((width * neutralPct) / 100)}%` }} />
+                          <div className="analysis-bar-fill negative" style={{ width: `${Math.round((width * negativePct) / 100)}%` }} />
+                        </div>
+                        <div className="analysis-sentiment-row">
+                          <span className="sentiment-pill positive">P {group.sentiment.positive}</span>
+                          <span className="sentiment-pill neutral">N {group.sentiment.neutral}</span>
+                          <span className="sentiment-pill negative">Neg {group.sentiment.negative}</span>
                         </div>
                       </button>
                     );
