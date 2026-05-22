@@ -120,7 +120,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="page page-student">
-      <NavBar title="Student Dashboard" />
+      <NavBar title="Student Dashboard" userLabel={me?.name || 'Student'} />
       <StatusPopup
         open={popup.open}
         title={popup.title}

@@ -20,7 +20,9 @@ export default function UniversityDashboard() {
   const [forms, setForms] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [selectedFeedbackIds, setSelectedFeedbackIds] = useState([]);
+  const [manageFeedbackGroup, setManageFeedbackGroup] = useState('teacher');
   const [universityCode, setUniversityCode] = useState('');
+  const [adminName, setAdminName] = useState('');
   const [subjectName, setSubjectName] = useState('');
   const [formState, setFormState] = useState(initialFormState);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
@@ -46,6 +48,7 @@ export default function UniversityDashboard() {
       setRequests(requestsRes.data.requests || []);
       setTeachers(teachersRes.data.teachers || []);
       setUniversityCode(meRes.data?.user?.universityCode || 'Not available');
+      setAdminName(meRes.data?.user?.name || '');
       setFeedbacks(feedbackRes.data.feedbacks || []);
       setForms(formsRes.data.forms || []);
       setSubjects(subjectsRes.data.subjects || []);
@@ -80,6 +83,47 @@ export default function UniversityDashboard() {
     () => feedbacks.filter((item) => item.formId?.type !== 'complaint'),
     [feedbacks]
   );
+
+  const manageFeedbackGroups = useMemo(() => {
+    const groups = new Map();
+
+    const getGroupMeta = (item) => {
+      if (manageFeedbackGroup === 'subject') {
+        return {
+          key: String(item.subjectId?._id || item.formId?.subjectId?._id || item.formId?.subjectId || 'unassigned'),
+          label: item.subjectId?.name || item.formId?.subjectId?.name || 'Unassigned Subject'
+        };
+      }
+
+      if (manageFeedbackGroup === 'class') {
+        return {
+          key: item.className || 'Unassigned',
+          label: item.className || 'Unassigned Class'
+        };
+      }
+
+      if (manageFeedbackGroup === 'form') {
+        return {
+          key: String(item.formId?._id || 'unassigned-form'),
+          label: item.formId?.title || 'Untitled Form'
+        };
+      }
+
+      return {
+        key: String(item.teacherId?._id || 'unassigned-teacher'),
+        label: item.teacherId?.name || 'Unknown Teacher'
+      };
+    };
+
+    for (const item of regularFeedbacks) {
+      const meta = getGroupMeta(item);
+      const existing = groups.get(meta.key) || { ...meta, items: [] };
+      existing.items.push(item);
+      groups.set(meta.key, existing);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [regularFeedbacks, manageFeedbackGroup]);
 
   const onAction = async (endpoint, requestId) => {
     setError('');
@@ -208,7 +252,7 @@ export default function UniversityDashboard() {
 
   return (
     <div className="page page-admin">
-      <NavBar title="Admin Dashboard" />
+      <NavBar title="Admin Dashboard" userLabel={adminName || 'Admin'} />
       <StatusPopup
         open={popup.open}
         title={popup.title}
@@ -419,18 +463,43 @@ export default function UniversityDashboard() {
               <button type="button" className="btn btn-danger" onClick={deleteMultipleFeedback}>Delete Selected ({selectedFeedbackIds.length})</button>
             </div>
 
-            {regularFeedbacks.length === 0 && <p>No regular feedback entries available.</p>}
-            {regularFeedbacks.map((item) => (
-              <div key={item._id} className="list-row">
-                <div className="row-actions">
-                  <input type="checkbox" checked={selectedFeedbackIds.includes(item._id)} onChange={() => toggleFeedbackSelection(item._id)} />
-                  <div>
-                    <strong>{item.formId?.title || 'Untitled Form'}</strong>
-                    <p>{item.teacherId?.name || 'Unknown teacher'} | {item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'}</p>
-                    <p>{item.className || 'Unassigned class'} | {item.sentiment || 'neutral'}</p>
-                  </div>
+            <div className="analysis-filters" style={{ marginBottom: '1rem' }}>
+              <h3>Group Feedback By</h3>
+              <div className="filter-grid">
+                <div>
+                  <label htmlFor="manageFeedbackGroup">Grouping</label>
+                  <select
+                    id="manageFeedbackGroup"
+                    value={manageFeedbackGroup}
+                    onChange={(e) => setManageFeedbackGroup(e.target.value)}
+                  >
+                    <option value="teacher">Teacher</option>
+                    <option value="subject">Subject</option>
+                    <option value="class">Class</option>
+                    <option value="form">Form</option>
+                  </select>
                 </div>
-                <button type="button" className="btn btn-danger" onClick={() => deleteSingleFeedback(item._id)}>Delete</button>
+              </div>
+            </div>
+
+            {regularFeedbacks.length === 0 && <p>No regular feedback entries available.</p>}
+
+            {manageFeedbackGroups.map((group) => (
+              <div key={group.key} className="card" style={{ marginBottom: '0.75rem' }}>
+                <h3>{group.label}</h3>
+                {group.items.map((item) => (
+                  <div key={item._id} className="list-row">
+                    <div className="row-actions">
+                      <input type="checkbox" checked={selectedFeedbackIds.includes(item._id)} onChange={() => toggleFeedbackSelection(item._id)} />
+                      <div>
+                        <strong>{item.formId?.title || 'Untitled Form'}</strong>
+                        <p>{item.teacherId?.name || 'Unknown teacher'} | {item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'}</p>
+                        <p>{item.className || 'Unassigned class'} | {item.sentiment || 'neutral'}</p>
+                      </div>
+                    </div>
+                    <button type="button" className="btn btn-danger" onClick={() => deleteSingleFeedback(item._id)}>Delete</button>
+                  </div>
+                ))}
               </div>
             ))}
           </section>
