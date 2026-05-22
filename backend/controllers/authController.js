@@ -150,6 +150,11 @@ exports.updateMe = async (req, res, next) => {
           : [];
 
         if (!teacherSubjects.includes(String(subjectId))) {
+          if (process.env.DEBUG_SUBJECT_VALIDATION === '1') {
+            console.warn('Subject validation failed', { userId: user._id.toString(), subjectId, teacherSubjects });
+            return res.status(400).json({ error: 'Selected subject is not available for your teacher', debug: { subjectId, teacherSubjects } });
+          }
+
           return res.status(400).json({ error: 'Selected subject is not available for your teacher' });
         }
 
