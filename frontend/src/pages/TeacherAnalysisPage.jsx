@@ -188,23 +188,54 @@ export default function TeacherAnalysisPage() {
           </div>
         </section>
 
-        {selectedDimensions.map((dimension) => (
-          <section className="card" key={dimension}>
-            <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Analysis</h3>
-            {(groupedBySelected[dimension] || []).length === 0 && <p>No analysis data for this group.</p>}
-            {(groupedBySelected[dimension] || []).map((group) => (
-              <button
-                type="button"
-                className="list-row list-row-button"
-                key={`${dimension}-${group.key}`}
-                onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
-              >
-                <strong>{group.label}</strong>
-                <span>{group.count} feedback(s)</span>
-              </button>
-            ))}
-          </section>
-        ))}
+        {selectedDimensions.map((dimension) => {
+          const groups = groupedBySelected[dimension] || [];
+          const maxCount = groups.length > 0 ? Math.max(...groups.map((item) => item.count)) : 1;
+
+          return (
+            <section className="card" key={dimension}>
+              <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Analysis Chart</h3>
+
+              {groups.length === 0 && <p>No analysis data for this group.</p>}
+
+              {groups.length > 0 && (
+                <div className="analysis-chart-block">
+                  {groups.map((group) => {
+                    const width = Math.max(6, Math.round((group.count / maxCount) * 100));
+                    return (
+                      <button
+                        type="button"
+                        className="analysis-bar-row"
+                        key={`${dimension}-${group.key}`}
+                        onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
+                      >
+                        <div className="analysis-bar-meta">
+                          <strong>{group.label}</strong>
+                          <span>{group.count} feedback(s)</span>
+                        </div>
+                        <div className="analysis-bar-track">
+                          <div className="analysis-bar-fill" style={{ width: `${width}%` }} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {groups.map((group) => (
+                <button
+                  type="button"
+                  className="list-row list-row-button"
+                  key={`row-${dimension}-${group.key}`}
+                  onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
+                >
+                  <strong>{group.label}</strong>
+                  <span>{group.count} feedback(s)</span>
+                </button>
+              ))}
+            </section>
+          );
+        })}
 
         <section className="card">
           <h3>Forms In Selected Group</h3>
