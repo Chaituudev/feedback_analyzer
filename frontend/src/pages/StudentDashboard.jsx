@@ -85,6 +85,16 @@ export default function StudentDashboard() {
     [feedbacks]
   );
 
+  const submittedFormIds = useMemo(
+    () => new Set(feedbacks.filter((item) => item.formId?.type !== 'complaint').map((item) => item.formId?._id).filter(Boolean)),
+    [feedbacks]
+  );
+
+  const availableForms = useMemo(
+    () => forms.filter((form) => !submittedFormIds.has(form._id)),
+    [forms, submittedFormIds]
+  );
+
   const availableSubjects = useMemo(
     () => (Array.isArray(me?.teacherId?.subjects) ? me.teacherId.subjects : []),
     [me]
@@ -178,8 +188,8 @@ export default function StudentDashboard() {
 
         <section className="card">
           <h2>Available Forms</h2>
-          {forms.length === 0 && <p>No forms available right now.</p>}
-          {forms.map((form) => (
+          {availableForms.length === 0 && <p>No new forms available right now.</p>}
+          {availableForms.map((form) => (
             <div className="list-row" key={form._id}>
               <div>
                 <strong>{form.title}</strong>

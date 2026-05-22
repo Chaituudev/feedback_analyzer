@@ -606,3 +606,59 @@ exports.getAnalytics = async (req, res, next) => {
     return next(err);
   }
 };
+
+exports.deleteFeedback = async (req, res, next) => {
+  try {
+    const { feedbackId } = req.params;
+
+    if (!isValidObjectId(feedbackId)) {
+      return res.status(400).json({ error: 'Valid feedbackId is required' });
+    }
+
+    const user = await User.findById(req.user.id).select('role');
+    if (!user || normalizeRole(user.role) !== 'admin') {
+      return res.status(403).json({ error: 'Only admin users can delete feedback' });
+    }
+
+    const feedback = await Feedback.findById(feedbackId);
+    if (!feedback) {
+      return res.status(404).json({ error: 'Feedback not found' });
+    }
+
+    await Feedback.deleteOne({ _id: feedbackId });
+
+    return res.json({ message: 'Feedback deleted', feedbackId });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.deleteFeedbackBulk = async (req, res, next) => {
+  try {
+    const { feedbackIds } = req.body;
+
+    if (!Array.isArray(feedbackIds) || feedbackIds.length === 0) {
+      return res.status(400).json({ error: 'feedbackIds must be a non-empty array' });
+    }
+
+    const validIds = [...new Set(feedbackIds.filter((id) => isValidObjectId(id)).map((id) => String(id)))];
+    if (validIds.length === 0) {
+      return res.status(400).json({ error: 'No valid feedbackIds provided' });
+    }
+
+    const user = await User.findById(req.user.id).select('role');
+    if (!user || normalizeRole(user.role) !== 'admin') {
+      return res.status(403).json({ error: 'Only admin users can delete feedback' });
+    }
+
+    const result = await Feedback.deleteMany({ _id: { $in: validIds } });
+
+    return res.json({
+      message: 'Feedback deleted',
+      deletedCount: result.deletedCount || 0,
+      feedbackIds: validIds
+    });
+  } catch (err) {
+    return next(err);
+  }
+};

@@ -19,7 +19,7 @@ const FORM_TEMPLATES = {
   },
 
   infrastructure: {
-    title: 'Infrastructure & Facilities Feedback',
+    title: 'Infrastructure & Fadlities Feedback',
     description: 'Assess classrooms, labs, technology, and campus support spaces',
     questions: [
       { text: 'How satisfied are you with the classroom facilities?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
@@ -37,24 +37,7 @@ const FORM_TEMPLATES = {
 
   program_satisfaction: {
     title: 'Program Satisfaction Feedback',
-    description: 'General feedback on your overall program experience',
-    questions: [
-      { text: 'Overall, how satisfied are you with your program?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'Would you recommend this program to other students?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How well does the program meet your expectations?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How confident are you about the knowledge gained so far?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How relevant is the program to your career goals?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How effective is the balance between theory and practical work?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How well does the program organize assessments and deadlines?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'How satisfied are you with the overall learning support?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
-      { text: 'What is the strongest part of the program?', answerType: 'paragraph' },
-      { text: 'What single improvement would make the biggest difference?', answerType: 'paragraph' }
-    ]
-  }
-
-  ,department_feedback: {
-    title: 'Department Feedback',
-    description: 'Evaluate department teaching, facilities, and student support',
+    description: 'Evaluate department teaching quality, facilities, and student support',
     questions: [
       { text: 'Are you satisfied with the teaching quality in the department?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },
       { text: 'Are the faculty members supportive and helpful?', answerType: 'rating', ratingScale: { min: 1, max: 5 } },

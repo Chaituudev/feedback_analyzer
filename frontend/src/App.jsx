@@ -8,6 +8,8 @@ import UniversityDashboard from './pages/UniversityDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import FeedbackFormPage from './pages/FeedbackFormPage';
+import AdminAnalysisPage from './pages/AdminAnalysisPage';
+import TeacherAnalysisPage from './pages/TeacherAnalysisPage';
 
 function roleHome(role) {
   if (role === 'admin' || role === 'university') return '/admin';
@@ -44,11 +46,31 @@ export default function App() {
         )}
       />
       <Route
+        path="/admin/analysis"
+        element={(
+          <ProtectedRoute allowedRoles={['admin', 'university']}>
+            <PageErrorBoundary>
+              <AdminAnalysisPage />
+            </PageErrorBoundary>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
         path="/teacher"
         element={(
           <ProtectedRoute allowedRoles={['teacher']}>
             <PageErrorBoundary>
               <TeacherDashboard />
+            </PageErrorBoundary>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/teacher/analysis"
+        element={(
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <PageErrorBoundary>
+              <TeacherAnalysisPage />
             </PageErrorBoundary>
           </ProtectedRoute>
         )}

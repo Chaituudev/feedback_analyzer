@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
 import StatusPopup from '../components/StatusPopup';
-import SentimentPieChart from '../components/SentimentPieChart';
-import TrendLineChart from '../components/TrendLineChart';
 import api from '../services/api';
 
 export default function TeacherDashboard() {
@@ -12,15 +11,6 @@ export default function TeacherDashboard() {
   const [subjects, setSubjects] = useState([]);
   const [me, setMe] = useState(null);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
-  const [analytics, setAnalytics] = useState({
-    sentimentDistribution: { positive: 0, negative: 0, neutral: 0 },
-    feedbackTrends: [],
-    alertCount: 0,
-    totalFeedback: 0,
-    negativePercentage: 0,
-    exceedsNegativeThreshold: false
-  });
-  const [alerts, setAlerts] = useState([]);
   const [teacherCode, setTeacherCode] = useState('');
   const [universityCode, setUniversityCode] = useState('');
   const [subjectId, setSubjectId] = useState('');
@@ -34,12 +24,10 @@ export default function TeacherDashboard() {
     setError('');
 
     try {
-      const [requestsRes, sentRes, feedbackRes, analyticsRes, alertsRes, subjectsRes, meRes] = await Promise.all([
+      const [requestsRes, sentRes, feedbackRes, subjectsRes, meRes] = await Promise.all([
         api.get('/requests?scope=received&status=pending'),
         api.get('/requests?scope=sent'),
         api.get('/feedback'),
-        api.get('/feedback/analytics'),
-        api.get('/feedback?alertOnly=true'),
         api.get('/subjects'),
         api.get('/auth/me')
       ]);
@@ -47,8 +35,6 @@ export default function TeacherDashboard() {
       setRequests(requestsRes.data.requests || []);
       setSentRequests(sentRes.data.requests || []);
       setFeedbacks(feedbackRes.data.feedbacks || []);
-      setAnalytics(analyticsRes.data);
-      setAlerts(alertsRes.data.feedbacks || []);
       setSubjects(subjectsRes.data.subjects || []);
       setMe(meRes.data.user || null);
       setTeacherCode(meRes.data.user?.teacherCode || 'Pending approval');
@@ -128,7 +114,7 @@ export default function TeacherDashboard() {
 
   return (
     <div className="page page-teacher">
-      <NavBar title={me?.universityId?.name || 'University'} userLabel={me?.name || 'Teacher'} showDashboardLink={false} />
+      <NavBar title="Teacher Dashboard" />
       <StatusPopup
         open={popup.open}
         title={popup.title}
@@ -143,6 +129,9 @@ export default function TeacherDashboard() {
           <h2>Teacher Code</h2>
           <p className="code">{teacherCode}</p>
           <p>Share this code with students so they can send requests.</p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <Link className="btn" to="/teacher/analysis">Open Analysis Page</Link>
+          </div>
         </section>
 
         <section className="card">
@@ -185,12 +174,7 @@ export default function TeacherDashboard() {
           {isUniversityAssigned ? (
             <form className="stack" onSubmit={submitSubjectRequest}>
               <label htmlFor="subjectId">Subject</label>
-              <select
-                id="subjectId"
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-                required
-              >
+              <select id="subjectId" value={subjectId} onChange={(e) => setSubjectId(e.target.value)} required>
                 <option value="">Select subject</option>
                 {subjects.map((subject) => (
                   <option key={subject._id} value={subject._id}>
@@ -250,28 +234,6 @@ export default function TeacherDashboard() {
           ))}
         </section>
 
-        <section className="card stats-row">
-          <div>
-            <h3>Total Feedback</h3>
-            <p>{analytics.totalFeedback || 0}</p>
-          </div>
-          <div>
-            <h3>Alerts</h3>
-            <p>{analytics.alertCount || 0}</p>
-          </div>
-        </section>
-
-        <SentimentPieChart distribution={analytics.sentimentDistribution} />
-        <TrendLineChart trends={analytics.feedbackTrends} />
-
-        {analytics.exceedsNegativeThreshold && (
-          <section className="card alert-warning">
-            <h2>⚠️ High Negative Feedback Alert</h2>
-            <p className="alert-percentage">{analytics.negativePercentage}% Negative Feedback</p>
-            <p className="alert-message">Warning: exceeds 30% threshold</p>
-          </section>
-        )}
-
         <section className="card">
           <h2>Student Form Submissions</h2>
           {regularFeedbacks.length === 0 && <p>No student submissions yet.</p>}
@@ -280,16 +242,11 @@ export default function TeacherDashboard() {
             return (
               <div key={item._id} className="list-row">
                 <div>
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => setSelectedFeedback(item)}
-                  >
+                  <button type="button" className="link-button" onClick={() => setSelectedFeedback(item)}>
                     {studentName}
                   </button>
                   <p>{item.formId?.title || 'Untitled Form'} | Rating: {item.rating || 'N/A'}</p>
                   <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
-                  <p>{item.category || 'general'} | {item.sentiment || 'neutral'}</p>
                 </div>
                 <span>{new Date(item.createdAt).toLocaleDateString()}</span>
               </div>
@@ -299,30 +256,11 @@ export default function TeacherDashboard() {
           {selectedFeedback && (
             <div className="card" style={{ marginTop: '0.75rem' }}>
               <h3>Submitted Form Details</h3>
-              <p>
-                <strong>Student:</strong> {selectedFeedback.studentId?.name || 'Anonymous'}
-              </p>
-              <p>
-                <strong>Form:</strong> {selectedFeedback.formId?.title || 'Untitled Form'}
-              </p>
-              <p>
-                <strong>Subject:</strong> {selectedFeedback.subjectId?.name || selectedFeedback.formId?.subjectId?.name || 'No subject'}
-              </p>
-              <p>
-                <strong>Class:</strong> {selectedFeedback.className || 'Unassigned'}
-              </p>
-              <p>
-                <strong>Rating:</strong> {selectedFeedback.rating || 'N/A'}
-              </p>
-              <p>
-                <strong>Sentiment:</strong> {selectedFeedback.sentiment || 'neutral'}
-              </p>
-              <p>
-                <strong>Category:</strong> {selectedFeedback.category || 'general'}
-              </p>
-              <p>
-                <strong>Suggestion:</strong> {selectedFeedback.suggestion || 'No suggestion generated'}
-              </p>
+              <p><strong>Student:</strong> {selectedFeedback.studentId?.name || 'Anonymous'}</p>
+              <p><strong>Form:</strong> {selectedFeedback.formId?.title || 'Untitled Form'}</p>
+              <p><strong>Subject:</strong> {selectedFeedback.subjectId?.name || selectedFeedback.formId?.subjectId?.name || 'No subject'}</p>
+              <p><strong>Class:</strong> {selectedFeedback.className || 'Unassigned'}</p>
+              <p><strong>Rating:</strong> {selectedFeedback.rating || 'N/A'}</p>
               <div className="stack">
                 {(selectedFeedback.answers || []).map((ans, idx) => (
                   <div key={`${idx}-${ans.question || 'q'}`}>
@@ -346,32 +284,11 @@ export default function TeacherDashboard() {
                   <strong>{item.studentId?.name || 'Anonymous Student'}</strong>
                   <p>{complaintText}</p>
                   <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
-                  <p>{item.category || 'general'} | {item.sentiment || 'neutral'}</p>
-                  <p>{item.suggestion || 'No suggestion generated'}</p>
                 </div>
                 <span>{new Date(item.createdAt).toLocaleDateString()}</span>
               </div>
             );
           })}
-        </section>
-
-        <section className="card">
-          <h2>Alert Feedback</h2>
-          {alerts.length === 0 && <p>No alerts.</p>}
-          {alerts.map((item) => (
-            <div key={item._id} className="list-row">
-              <div>
-                <strong>{item.formId?.title || 'Untitled Form'}</strong>
-                <p>{item.category} | {item.sentiment}</p>
-                <p>{item.subjectId?.name || item.formId?.subjectId?.name || 'No subject'} | Class: {item.className || 'Unassigned'}</p>
-                <p>{item.suggestion || 'No suggestion generated'}</p>
-                {Array.isArray(item.alertReasons) && item.alertReasons.length > 0 && (
-                  <p>{item.alertReasons.join(' | ')}</p>
-                )}
-              </div>
-              <p>{item.rawText}</p>
-            </div>
-          ))}
         </section>
       </main>
     </div>
