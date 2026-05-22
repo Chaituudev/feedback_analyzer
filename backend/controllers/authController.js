@@ -146,7 +146,7 @@ exports.updateMe = async (req, res, next) => {
         user.subjectId = undefined;
       } else if (subjectId) {
         const teacherSubjects = Array.isArray(user.teacherId?.subjects)
-          ? user.teacherId.subjects.map((item) => String(item))
+          ? user.teacherId.subjects.map((item) => String(item?._id ?? item))
           : [];
 
         if (!teacherSubjects.includes(String(subjectId))) {
