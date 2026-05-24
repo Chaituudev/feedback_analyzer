@@ -70,6 +70,7 @@ function buildQuestionGroups(feedbacks) {
 
 export default function TeacherAnalysisPage() {
   const [feedbacks, setFeedbacks] = useState([]);
+  const [analysisTab, setAnalysisTab] = useState('grouped');
   const [selectedDimensions, setSelectedDimensions] = useState(['subject', 'class']);
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [classFilter, setClassFilter] = useState('all');
@@ -169,7 +170,7 @@ export default function TeacherAnalysisPage() {
 
   return (
     <div className="page page-teacher">
-      <NavBar title="Teacher Dashboard" />
+      <NavBar title="Teacher Dashboard" userLabel={undefined} />
       <main className="content-grid single-column">
         <section className="card">
           <div className="row-actions" style={{ justifyContent: 'space-between' }}>
@@ -179,104 +180,129 @@ export default function TeacherAnalysisPage() {
           {loading && <p>Loading analysis...</p>}
           {error && <p className="error">{error}</p>}
 
-          <div className="analysis-filters">
-            <h3>Group By</h3>
-            <div className="filter-chip-row">
-              {TEACHER_DIMENSIONS.map((option) => (
-                <label key={option.key} className="filter-chip">
-                  <input
-                    type="checkbox"
-                    checked={selectedDimensions.includes(option.key)}
-                    onChange={() => toggleDimension(option.key)}
-                  />
-                  {option.label}
-                </label>
-              ))}
-            </div>
-
-            <h3>Refine Dataset</h3>
-            <div className="filter-grid">
-              <div>
-                <label htmlFor="subjectFilter">Subject</label>
-                <select id="subjectFilter" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
-                  <option value="all">All Subjects</option>
-                  {subjectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="classFilter">Class</label>
-                <select id="classFilter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
-                  <option value="all">All Classes</option>
-                  {classOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="formFilter">Form</label>
-                <select id="formFilter" value={formFilter} onChange={(e) => setFormFilter(e.target.value)}>
-                  <option value="all">All Forms</option>
-                  {formOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </div>
-            </div>
+          <div className="tabs-row" style={{ marginBottom: '0.5rem' }}>
+            <button
+              type="button"
+              className={`tab-btn ${analysisTab === 'grouped' ? 'active' : ''}`}
+              onClick={() => setAnalysisTab('grouped')}
+            >
+              Grouped Analysis
+            </button>
+            <button
+              type="button"
+              className={`tab-btn ${analysisTab === 'question' ? 'active' : ''}`}
+              onClick={() => setAnalysisTab('question')}
+            >
+              Question Wise Analysis
+            </button>
           </div>
-        </section>
 
-        <section className="card">
-          <h3>Forms In Selected Group</h3>
-          {!activeGroup && <p>Click any analysis group above to view all related forms.</p>}
-          {activeGroup && (
-            <>
-              <p><strong>Selected:</strong> {activeGroup.label}</p>
-              {activeGroupForms.length === 0 && <p>No forms found for this group.</p>}
-              {activeGroupForms.map((form) => (
-                <div className="list-row" key={form.id}>
-                  <strong>{form.title}</strong>
+          {analysisTab === 'grouped' && (
+            <div className="analysis-filters">
+              <h3>Group By</h3>
+              <div className="filter-chip-row">
+                {TEACHER_DIMENSIONS.map((option) => (
+                  <label key={option.key} className="filter-chip">
+                    <input
+                      type="checkbox"
+                      checked={selectedDimensions.includes(option.key)}
+                      onChange={() => toggleDimension(option.key)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+
+              <h3>Refine Dataset</h3>
+              <div className="filter-grid">
+                <div>
+                  <label htmlFor="subjectFilter">Subject</label>
+                  <select id="subjectFilter" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+                    <option value="all">All Subjects</option>
+                    {subjectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
                 </div>
-              ))}
-            </>
+                <div>
+                  <label htmlFor="classFilter">Class</label>
+                  <select id="classFilter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+                    <option value="all">All Classes</option>
+                    {classOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="formFilter">Form</label>
+                  <select id="formFilter" value={formFilter} onChange={(e) => setFormFilter(e.target.value)}>
+                    <option value="all">All Forms</option>
+                    {formOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
           )}
         </section>
 
-        {selectedDimensions.map((dimension) => {
-          const groups = groupedBySelected[dimension] || [];
-
-          return (
-            <section className="card" key={dimension}>
-              <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Sentiment Charts</h3>
-              {groups.length === 0 && <p>No analysis data for this group.</p>}
-              {groups.length > 0 && (
-                <div className="circle-chart-grid">
-                  {groups.map((group) => (
-                    <SentimentCircleChart
-                      key={`${dimension}-${group.key}`}
-                      title={group.label}
-                      count={group.count}
-                      sentiment={group.sentiment}
-                      onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
-                    />
+        {analysisTab === 'grouped' && (
+          <>
+            <section className="card">
+              <h3>Forms In Selected Group</h3>
+              {!activeGroup && <p>Click any analysis group above to view all related forms.</p>}
+              {activeGroup && (
+                <>
+                  <p><strong>Selected:</strong> {activeGroup.label}</p>
+                  {activeGroupForms.length === 0 && <p>No forms found for this group.</p>}
+                  {activeGroupForms.map((form) => (
+                    <div className="list-row" key={form.id}>
+                      <strong>{form.title}</strong>
+                    </div>
                   ))}
-                </div>
+                </>
               )}
             </section>
-          );
-        })}
 
-        <section className="card">
-          <h3>Question Wise Analysis</h3>
-          {questionGroups.length === 0 && <p>No question data available.</p>}
-          {questionGroups.length > 0 && (
-            <div className="circle-chart-grid">
-              {questionGroups.map((group) => (
-                <SentimentCircleChart
-                  key={group.key}
-                  title={group.question}
-                  count={group.count}
-                  sentiment={group.sentiment}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+            {selectedDimensions.map((dimension) => {
+              const groups = groupedBySelected[dimension] || [];
+
+              return (
+                <section className="card" key={dimension}>
+                  <h3>{TEACHER_DIMENSIONS.find((item) => item.key === dimension)?.label} Sentiment Charts</h3>
+                  {groups.length === 0 && <p>No analysis data for this group.</p>}
+                  {groups.length > 0 && (
+                    <div className="circle-chart-grid">
+                      {groups.map((group) => (
+                        <SentimentCircleChart
+                          key={`${dimension}-${group.key}`}
+                          title={group.label}
+                          count={group.count}
+                          sentiment={group.sentiment}
+                          onClick={() => setActiveGroup({ dimension, key: group.key, label: group.label })}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </>
+        )}
+
+        {analysisTab === 'question' && (
+          <section className="card">
+            <h3>Question Wise Analysis</h3>
+            {questionGroups.length === 0 && <p>No question data available.</p>}
+            {questionGroups.length > 0 && (
+              <div className="circle-chart-grid">
+                {questionGroups.map((group) => (
+                  <SentimentCircleChart
+                    key={group.key}
+                    title={group.question}
+                    count={group.count}
+                    sentiment={group.sentiment}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );
