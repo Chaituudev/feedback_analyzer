@@ -44,6 +44,33 @@ function uniqueOptions(feedbacks, dimension) {
   return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function buildQuestionGroups(feedbacks) {
+  const groups = new Map();
+
+  for (const item of feedbacks) {
+    const sentiment = item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral';
+    for (const answer of item.answers || []) {
+      const question = String(answer?.question || '').trim();
+      if (!question) continue;
+
+      const key = `${question}__${answer?.answerType || 'paragraph'}`;
+      const existing = groups.get(key) || {
+        key,
+        question,
+        answerType: answer?.answerType || 'paragraph',
+        count: 0,
+        sentiment: { positive: 0, neutral: 0, negative: 0 }
+      };
+
+      existing.count += 1;
+      existing.sentiment[sentiment] += 1;
+      groups.set(key, existing);
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.question.localeCompare(b.question));
+}
+
 export default function AdminAnalysisPage() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [selectedDimensions, setSelectedDimensions] = useState(['teacher', 'subject']);
@@ -134,6 +161,8 @@ export default function AdminAnalysisPage() {
     const found = groups.find((g) => g.key === activeGroup.key);
     return found?.forms || [];
   }, [activeGroup, groupedBySelected]);
+
+  const questionGroups = useMemo(() => buildQuestionGroups(filteredFeedbacks), [filteredFeedbacks]);
 
   const toggleDimension = (dimension) => {
     setSelectedDimensions((prev) => {
@@ -245,6 +274,23 @@ export default function AdminAnalysisPage() {
             </section>
           );
         })}
+
+        <section className="card">
+          <h3>Question Wise Analysis</h3>
+          {questionGroups.length === 0 && <p>No question data available.</p>}
+          {questionGroups.length > 0 && (
+            <div className="circle-chart-grid">
+              {questionGroups.map((group) => (
+                <SentimentCircleChart
+                  key={group.key}
+                  title={group.question}
+                  count={group.count}
+                  sentiment={group.sentiment}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

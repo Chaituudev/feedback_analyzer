@@ -114,7 +114,7 @@ export default function TeacherDashboard() {
 
   return (
     <div className="page page-teacher">
-      <NavBar title="Teacher Dashboard" />
+      <NavBar title="Teacher Dashboard" userLabel={me?.name || 'Teacher'} />
       <StatusPopup
         open={popup.open}
         title={popup.title}

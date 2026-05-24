@@ -31,6 +31,15 @@ a:hover {
   min-height: 100vh;
 }
 
+body {
+  background-image:
+    linear-gradient(180deg, rgba(247, 249, 252, 0.82), rgba(238, 244, 255, 0.92)),
+    url('../background.jpeg');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+}
+
 .page-admin {
   --page-accent: #dc2626;
   --page-accent-strong: #991b1b;
@@ -395,6 +404,12 @@ textarea:focus {
 }
 
 .circle-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.question-wise-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
