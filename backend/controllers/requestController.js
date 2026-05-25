@@ -123,9 +123,14 @@ exports.teacherToSubject = async (req, res, next) => {
 
 exports.studentToTeacher = async (req, res, next) => {
   try {
-    const targetTeacherId = isValidObjectId(req.body.teacherId)
+    let targetTeacherId = isValidObjectId(req.body.teacherId)
       ? String(req.body.teacherId)
       : null;
+
+    if (!targetTeacherId && isNonEmptyString(req.body.teacherCode)) {
+      const teacher = await User.findOne({ role: 'teacher', teacherCode: req.body.teacherCode.trim() }).select('_id');
+      targetTeacherId = teacher ? String(teacher._id) : null;
+    }
 
     if (!targetTeacherId) {
       return res.status(400).json({ error: 'teacherId is required' });
