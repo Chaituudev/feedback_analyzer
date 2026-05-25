@@ -8,6 +8,7 @@ export default function StudentDashboard() {
   const [forms, setForms] = useState([]);
   const [requests, setRequests] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [me, setMe] = useState(null);
   const [className, setClassName] = useState('');
   const [subjectId, setSubjectId] = useState('');
@@ -31,10 +32,18 @@ export default function StudentDashboard() {
         api.get('/feedback')
       ]);
       const meRes = await api.get('/auth/me');
+      let teachersRes = { data: { teachers: [] } };
+
+      try {
+        teachersRes = await api.get('/auth/teachers');
+      } catch (teacherErr) {
+        teachersRes = { data: { teachers: [] } };
+      }
 
       setForms(formsRes.data.forms || []);
       setRequests(requestsRes.data.requests || []);
       setFeedbacks(feedbackRes.data.feedbacks || []);
+      setTeachers(teachersRes.data.teachers || []);
       setMe(meRes.data.user || null);
       setClassName(meRes.data.user?.className || '');
       setSubjectId(meRes.data.user?.subjectId?._id || meRes.data.user?.subjectId || '');
@@ -48,6 +57,10 @@ export default function StudentDashboard() {
 
       if (teacherList.length > 0) {
         setComplaintTeacherId(String(teacherList[0]));
+      }
+
+      if ((teachersRes.data.teachers || []).length > 0) {
+        setTeacherIdInput((current) => current || String(teachersRes.data.teachers[0]._id));
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -186,14 +199,30 @@ export default function StudentDashboard() {
         <section className="card">
           <h2>Send Teacher Request</h2>
           <form className="stack" onSubmit={sendTeacherRequest}>
-            <label htmlFor="teacherId">Teacher ID or Teacher Code</label>
-            <input
-              id="teacherId"
-              value={teacherIdInput}
-              onChange={(e) => setTeacherIdInput(e.target.value)}
-              placeholder="Enter one teacher ID or teacher code"
-              required
-            />
+            <label htmlFor="teacherId">Teacher</label>
+            {teachers.length > 0 ? (
+              <select
+                id="teacherId"
+                value={teacherIdInput}
+                onChange={(e) => setTeacherIdInput(e.target.value)}
+                required
+              >
+                <option value="">Select a teacher</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher._id} value={teacher._id}>
+                    {teacher.name} ({teacher.teacherCode || 'no code'})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="teacherId"
+                value={teacherIdInput}
+                onChange={(e) => setTeacherIdInput(e.target.value)}
+                placeholder="Enter a teacher ID"
+                required
+              />
+            )}
             <button className="btn" type="submit">Send Request</button>
           </form>
         </section>

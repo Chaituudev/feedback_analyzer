@@ -194,18 +194,25 @@ exports.updateMe = async (req, res, next) => {
 
 exports.getUniversityTeachers = async (req, res, next) => {
   try {
-    const universityUser = await User.findById(req.user.id).select('universityCode role');
+    const user = await User.findById(req.user.id).select('universityCode universityId role');
+    const role = normalizeRole(user?.role);
 
-    if (!universityUser || normalizeRole(universityUser.role) !== 'admin') {
+    if (!user || !['admin', 'university', 'student'].includes(role)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const university = await University.findOne({ universityCode: universityUser.universityCode }).select('_id');
-    if (!university) {
+    let universityId = user.universityId || null;
+
+    if (!universityId && user.universityCode) {
+      const university = await University.findOne({ universityCode: user.universityCode }).select('_id');
+      universityId = university?._id || null;
+    }
+
+    if (!universityId) {
       return res.status(404).json({ error: 'University not found' });
     }
 
-    const teachers = await User.find({ role: 'teacher', universityId: university._id })
+    const teachers = await User.find({ role: 'teacher', universityId })
       .select('name email teacherCode universityId')
       .sort({ createdAt: -1 });
 
