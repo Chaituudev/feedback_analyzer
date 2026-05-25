@@ -85,7 +85,11 @@ export default function StudentDashboard() {
     }
 
     try {
-      await api.post('/request/teacher', { teacherId });
+      const payload = /^[a-fA-F0-9]{24}$/.test(teacherId)
+        ? { teacherId }
+        : { teacherCode: teacherId };
+
+      await api.post('/request/teacher', payload);
       setPopup({ open: true, title: 'Request sent', message: 'Your teacher request was submitted successfully.' });
       setTeacherIdInput('');
       await refresh();
@@ -182,12 +186,12 @@ export default function StudentDashboard() {
         <section className="card">
           <h2>Send Teacher Request</h2>
           <form className="stack" onSubmit={sendTeacherRequest}>
-            <label htmlFor="teacherId">Teacher ID</label>
+            <label htmlFor="teacherId">Teacher ID or Teacher Code</label>
             <input
               id="teacherId"
               value={teacherIdInput}
               onChange={(e) => setTeacherIdInput(e.target.value)}
-              placeholder="Enter one teacher ID"
+              placeholder="Enter one teacher ID or teacher code"
               required
             />
             <button className="btn" type="submit">Send Request</button>
