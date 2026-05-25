@@ -123,26 +123,12 @@ exports.teacherToSubject = async (req, res, next) => {
 
 exports.studentToTeacher = async (req, res, next) => {
   try {
-    const rawTeacherIds = [];
-    if (isValidObjectId(req.body.teacherId)) {
-      rawTeacherIds.push(req.body.teacherId);
-    }
+    const targetTeacherId = isValidObjectId(req.body.teacherId)
+      ? String(req.body.teacherId)
+      : null;
 
-    if (Array.isArray(req.body.teacherIds)) {
-      rawTeacherIds.push(...req.body.teacherIds.filter((id) => isValidObjectId(id)));
-    } else if (isNonEmptyString(req.body.teacherIds)) {
-      rawTeacherIds.push(...req.body.teacherIds.split(/[\n,]+/).map((id) => id.trim()).filter((id) => isValidObjectId(id)));
-    }
-
-    if (rawTeacherIds.length === 0 && isNonEmptyString(req.body.teacherCode)) {
-      const receiver = await User.findOne({ role: 'teacher', teacherCode: req.body.teacherCode.trim() }).select('_id');
-      if (receiver) rawTeacherIds.push(String(receiver._id));
-    }
-
-    const teacherIds = [...new Set(rawTeacherIds.map((id) => String(id)))];
-
-    if (teacherIds.length === 0) {
-      return res.status(400).json({ error: 'teacherId or teacherIds is required' });
+    if (!targetTeacherId) {
+      return res.status(400).json({ error: 'teacherId is required' });
     }
 
     const sender = await User.findById(req.user.id);
@@ -155,52 +141,34 @@ exports.studentToTeacher = async (req, res, next) => {
       sender.teacherId
     ].filter(Boolean).map((id) => String(id)));
 
-    const createdRequests = [];
-    const skippedTeacherIds = [];
-
-    for (const teacherId of teacherIds) {
-      const receiver = await User.findById(teacherId).select('role teacherCode');
-      if (!receiver || receiver.role !== 'teacher') {
-        skippedTeacherIds.push(teacherId);
-        continue;
-      }
-
-      if (assignedSet.has(String(receiver._id))) {
-        skippedTeacherIds.push(String(receiver._id));
-        continue;
-      }
-
-      const duplicate = await Request.findOne({
-        type: 'student_to_teacher',
-        senderId: sender._id,
-        receiverId: receiver._id,
-        status: 'pending'
-      });
-
-      if (duplicate) {
-        skippedTeacherIds.push(String(receiver._id));
-        continue;
-      }
-
-      const request = await Request.create({
-        type: 'student_to_teacher',
-        senderId: sender._id,
-        receiverId: receiver._id,
-        status: 'pending'
-      });
-
-      createdRequests.push(request);
+    const receiver = await User.findById(targetTeacherId).select('role teacherCode');
+    if (!receiver || receiver.role !== 'teacher') {
+      return res.status(404).json({ error: 'Invalid teacherId' });
     }
 
-    if (createdRequests.length === 0) {
-      return res.status(409).json({ error: 'No new teacher requests were created' });
+    if (assignedSet.has(String(receiver._id))) {
+      return res.status(409).json({ error: 'Student is already assigned to this teacher' });
     }
 
-    return res.status(201).json({
-      message: 'Student request(s) sent',
-      requests: createdRequests,
-      skippedTeacherIds
+    const duplicate = await Request.findOne({
+      type: 'student_to_teacher',
+      senderId: sender._id,
+      receiverId: receiver._id,
+      status: 'pending'
     });
+
+    if (duplicate) {
+      return res.status(409).json({ error: 'A pending request already exists' });
+    }
+
+    const request = await Request.create({
+      type: 'student_to_teacher',
+      senderId: sender._id,
+      receiverId: receiver._id,
+      status: 'pending'
+    });
+
+    return res.status(201).json({ message: 'Student request sent', request });
   } catch (err) { next(err); }
 };
 

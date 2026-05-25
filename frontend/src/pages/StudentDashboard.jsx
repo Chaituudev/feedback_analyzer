@@ -11,7 +11,7 @@ export default function StudentDashboard() {
   const [me, setMe] = useState(null);
   const [className, setClassName] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [teacherIdsInput, setTeacherIdsInput] = useState('');
+  const [teacherIdInput, setTeacherIdInput] = useState('');
   const [complaint, setComplaint] = useState('');
   const [showComplaintForm, setShowComplaintForm] = useState(false);
   const [complaintTeacherId, setComplaintTeacherId] = useState('');
@@ -48,7 +48,6 @@ export default function StudentDashboard() {
 
       if (teacherList.length > 0) {
         setComplaintTeacherId(String(teacherList[0]));
-        setTeacherIdsInput(teacherList.join(', '));
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -78,20 +77,17 @@ export default function StudentDashboard() {
     e.preventDefault();
     setError('');
 
-    const teacherIds = teacherIdsInput
-      .split(/[\n,]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
+    const teacherId = teacherIdInput.trim();
 
-    if (teacherIds.length === 0) {
-      setError('Enter at least one teacher ID');
+    if (!teacherId) {
+      setError('Enter a teacher ID');
       return;
     }
 
     try {
-      await api.post('/request/teacher', { teacherIds });
-      setPopup({ open: true, title: 'Request sent', message: 'Your teacher request(s) were submitted successfully.' });
-      setTeacherIdsInput('');
+      await api.post('/request/teacher', { teacherId });
+      setPopup({ open: true, title: 'Request sent', message: 'Your teacher request was submitted successfully.' });
+      setTeacherIdInput('');
       await refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Request failed');
@@ -186,16 +182,14 @@ export default function StudentDashboard() {
         <section className="card">
           <h2>Send Teacher Request</h2>
           <form className="stack" onSubmit={sendTeacherRequest}>
-            <label htmlFor="teacherIds">Teacher ID(s)</label>
-            <textarea
-              id="teacherIds"
-              value={teacherIdsInput}
-              onChange={(e) => setTeacherIdsInput(e.target.value)}
-              placeholder="Paste one or more teacher IDs, separated by commas or new lines"
-              rows="4"
+            <label htmlFor="teacherId">Teacher ID</label>
+            <input
+              id="teacherId"
+              value={teacherIdInput}
+              onChange={(e) => setTeacherIdInput(e.target.value)}
+              placeholder="Enter one teacher ID"
               required
             />
-            <p className="info">Add multiple teachers by pasting their IDs on separate lines or separated by commas.</p>
             <button className="btn" type="submit">Send Request</button>
           </form>
         </section>
