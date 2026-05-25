@@ -295,6 +295,7 @@ export default function TeacherAnalysisPage() {
                   <SentimentCircleChart
                     key={group.key}
                     title={group.question}
+                    subtitle={`Type: ${group.answerType === 'rating' ? 'Rating' : 'Paragraph'}`}
                     count={group.count}
                     sentiment={group.sentiment}
                   />

@@ -13,6 +13,33 @@ const initialFormState = {
   subjectId: ''
 };
 
+function buildQuestionGroups(feedbacks) {
+  const groups = new Map();
+
+  for (const item of feedbacks) {
+    const sentiment = item.sentiment === 'positive' || item.sentiment === 'negative' ? item.sentiment : 'neutral';
+    for (const answer of item.answers || []) {
+      const question = String(answer?.question || '').trim();
+      if (!question) continue;
+
+      const key = `${question}__${answer?.answerType || 'paragraph'}`;
+      const existing = groups.get(key) || {
+        key,
+        question,
+        answerType: answer?.answerType || 'paragraph',
+        count: 0,
+        sentiment: { positive: 0, neutral: 0, negative: 0 }
+      };
+
+      existing.count += 1;
+      existing.sentiment[sentiment] += 1;
+      groups.set(key, existing);
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.question.localeCompare(b.question));
+}
+
 export default function UniversityDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [requests, setRequests] = useState([]);
@@ -84,6 +111,8 @@ export default function UniversityDashboard() {
     () => feedbacks.filter((item) => item.formId?.type !== 'complaint'),
     [feedbacks]
   );
+
+  const questionGroups = useMemo(() => buildQuestionGroups(regularFeedbacks), [regularFeedbacks]);
 
   const manageFeedbackGroups = useMemo(() => {
     const groups = new Map();
@@ -320,7 +349,8 @@ export default function UniversityDashboard() {
             <button type="button" className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
             <button type="button" className={`tab-btn ${activeTab === 'forms' ? 'active' : ''}`} onClick={() => setActiveTab('forms')}>Form Builder</button>
             <button type="button" className={`tab-btn ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>Manage Feedback</button>
-            <button type="button" className={`tab-btn ${activeTab === 'feedback-charts' ? 'active' : ''}`} onClick={() => setActiveTab('feedback-charts')}>Feedback Charts</button>
+            <button type="button" className={`tab-btn ${activeTab === 'feedback-charts' ? 'active' : ''}`} onClick={() => setActiveTab('feedback-charts')}>Grouped Analysis</button>
+            <button type="button" className={`tab-btn ${activeTab === 'question-wise' ? 'active' : ''}`} onClick={() => setActiveTab('question-wise')}>Question Wise</button>
           </div>
         </section>
 
@@ -549,7 +579,7 @@ export default function UniversityDashboard() {
         {activeTab === 'feedback-charts' && (
           <section className="card">
             <div className="section-header">
-              <h2>Feedback Sentiment Charts</h2>
+              <h2>Grouped Analysis</h2>
               <span className="info">Choose a grouping to update the charts</span>
             </div>
 
@@ -574,6 +604,30 @@ export default function UniversityDashboard() {
                   <SentimentCircleChart
                     key={`manage-${manageFeedbackGroup}-${group.key}`}
                     title={group.label}
+                    count={group.count}
+                    sentiment={group.sentiment}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'question-wise' && (
+          <section className="card">
+            <div className="section-header">
+              <h2>Question Wise Analysis</h2>
+              <span className="info">Question type is shown under each title</span>
+            </div>
+
+            {questionGroups.length === 0 && <p>No question data available.</p>}
+            {questionGroups.length > 0 && (
+              <div className="circle-chart-grid">
+                {questionGroups.map((group) => (
+                  <SentimentCircleChart
+                    key={group.key}
+                    title={group.question}
+                    subtitle={`Type: ${group.answerType === 'rating' ? 'Rating' : 'Paragraph'}`}
                     count={group.count}
                     sentiment={group.sentiment}
                   />

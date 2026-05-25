@@ -309,6 +309,7 @@ export default function AdminAnalysisPage() {
                   <SentimentCircleChart
                     key={group.key}
                     title={group.question}
+                      subtitle={`Type: ${group.answerType === 'rating' ? 'Rating' : 'Paragraph'}`}
                     count={group.count}
                     sentiment={group.sentiment}
                   />

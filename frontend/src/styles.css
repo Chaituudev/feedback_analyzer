@@ -454,6 +454,13 @@ textarea:focus {
   border-radius: 50%;
   background: #ffffff;
   display: grid;
+.circle-chart-subtitle {
+  display: block;
+  margin-top: 0.2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #475569;
+}
   place-items: center;
   text-align: center;
   padding: 0.5rem;

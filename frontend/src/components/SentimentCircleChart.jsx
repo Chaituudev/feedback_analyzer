@@ -6,7 +6,7 @@ function clampPercentage(value) {
   return value;
 }
 
-export default function SentimentCircleChart({ title, sentiment, count, onClick }) {
+export default function SentimentCircleChart({ title, subtitle, sentiment, count, onClick }) {
   const total = Math.max(1, count || 0);
   const positivePct = clampPercentage(Math.round((sentiment.positive / total) * 100));
   const neutralPct = clampPercentage(Math.round((sentiment.neutral / total) * 100));
@@ -21,6 +21,7 @@ export default function SentimentCircleChart({ title, sentiment, count, onClick 
   return (
     <Component type={onClick ? 'button' : undefined} className={`circle-chart-card${onClick ? ' circle-chart-card-clickable' : ''}`} onClick={onClick}>
       <strong className="circle-chart-title">{title}</strong>
+      {subtitle && <span className="circle-chart-subtitle">{subtitle}</span>}
       <div className="circle-chart-wrap">
         <div className="circle-chart" style={chartStyle}>
           <div className="circle-chart-hole">
