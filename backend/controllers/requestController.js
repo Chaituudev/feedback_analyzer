@@ -127,6 +127,10 @@ exports.studentToTeacher = async (req, res, next) => {
       ? String(req.body.teacherId)
       : null;
 
+    if (!targetTeacherId && Array.isArray(req.body.teacherIds)) {
+      targetTeacherId = req.body.teacherIds.find((id) => isValidObjectId(id)) || null;
+    }
+
     if (!targetTeacherId && isNonEmptyString(req.body.teacherCode)) {
       const teacher = await User.findOne({ role: 'teacher', teacherCode: req.body.teacherCode.trim() }).select('_id');
       targetTeacherId = teacher ? String(teacher._id) : null;
