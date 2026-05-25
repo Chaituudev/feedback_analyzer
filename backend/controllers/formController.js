@@ -94,6 +94,7 @@ exports.createForm = async (req, res, next) => {
       questions,
       type = 'public',
       assignedTeacher,
+      assignedTeachers,
       subjectId
     } = req.body;
 
@@ -115,11 +116,11 @@ exports.createForm = async (req, res, next) => {
       return res.status(403).json({ error: 'Only university users can create forms' });
     }
 
-    const hasAssignedTeacher = isValidObjectId(assignedTeacher);
+    const hasAssignedTeacher = isValidObjectId(assignedTeacher) || (Array.isArray(assignedTeachers) && assignedTeachers.some(isValidObjectId));
     const hasSubject = isValidObjectId(subjectId);
 
     if (!hasAssignedTeacher && !hasSubject) {
-      return res.status(400).json({ error: 'assignedTeacher or subjectId is required' });
+      return res.status(400).json({ error: 'assignedTeacher(s) or subjectId is required' });
     }
 
     let subject = null;
@@ -130,33 +131,43 @@ exports.createForm = async (req, res, next) => {
       }
     }
 
-    let teacher = null;
-    if (hasAssignedTeacher) {
-      teacher = await User.findById(assignedTeacher);
-      if (!teacher || teacher.role !== 'teacher') {
+
+    // normalize assigned teachers: support single `assignedTeacher` or array `assignedTeachers`
+    let normalizedAssignedTeachers = [];
+    if (Array.isArray(assignedTeachers) && assignedTeachers.length) {
+      normalizedAssignedTeachers = assignedTeachers.filter(isValidObjectId);
+    } else if (isValidObjectId(assignedTeacher)) {
+      normalizedAssignedTeachers = [assignedTeacher];
+    }
+
+    // validate teacher ids
+    const teacherDocs = [];
+    for (const tid of normalizedAssignedTeachers) {
+      const t = await User.findById(tid);
+      if (!t || t.role !== 'teacher') {
         return res.status(404).json({ error: 'Assigned teacher not found' });
       }
-
-      if (!teacher.universityId || String(teacher.universityId) !== String(university._id)) {
+      if (!t.universityId || String(t.universityId) !== String(university._id)) {
         return res.status(403).json({ error: 'Teacher does not belong to your university' });
       }
+      teacherDocs.push(t);
     }
 
-    if (teacher && subject) {
-      const teacherSubjectIds = new Set((teacher.subjects || []).map((item) => String(item)));
-      if (!teacherSubjectIds.has(String(subject._id))) {
-        return res.status(403).json({ error: 'Selected subject is not assigned to this teacher' });
+    if (teacherDocs.length > 0 && subject) {
+      for (const t of teacherDocs) {
+        const teacherSubjectIds = new Set((t.subjects || []).map((item) => String(item)));
+        if (!teacherSubjectIds.has(String(subject._id))) {
+          return res.status(403).json({ error: 'Selected subject is not assigned to one of the assigned teachers' });
+        }
       }
     }
-
-    const normalizedAssignedTeacher = teacher ? teacher._id : null;
 
     const form = await Form.create({
       title: title.trim(),
       questions: normalizedQuestions,
       type,
       subjectId: subject ? subject._id : undefined,
-      assignedTeacher: normalizedAssignedTeacher,
+      assignedTeachers: teacherDocs.length > 0 ? teacherDocs.map((t) => t._id) : undefined,
       createdBy: req.user.id,
       isActive: true
     });
@@ -181,7 +192,7 @@ exports.getForms = async (req, res, next) => {
       query.createdBy = user._id;
     } else if (user.role === 'teacher') {
       const subjectIds = Array.isArray(user.subjects) ? user.subjects : [];
-      query.$or = [{ assignedTeacher: user._id }];
+      query.$or = [{ assignedTeachers: user._id }];
 
       if (subjectIds.length > 0) {
         query.$or.push({ subjectId: { $in: subjectIds } });
@@ -191,7 +202,7 @@ exports.getForms = async (req, res, next) => {
         return res.json({ forms: [] });
       }
 
-      const orFilters = [{ assignedTeacher: user.teacherId }];
+      const orFilters = [{ assignedTeachers: user.teacherId }];
 
       if (user.subjectId) {
         orFilters.push({ subjectId: user.subjectId });
@@ -201,7 +212,7 @@ exports.getForms = async (req, res, next) => {
     }
 
     const forms = await Form.find(query)
-      .populate('assignedTeacher', 'name email teacherCode')
+      .populate('assignedTeachers', 'name email teacherCode')
       .populate('subjectId', 'name code')
       .sort({ createdAt: -1 });
 
@@ -217,7 +228,7 @@ exports.getFormById = async (req, res, next) => {
     }
 
     const form = await Form.findById(formId)
-      .populate('assignedTeacher', 'name email teacherCode')
+      .populate('assignedTeachers', 'name email teacherCode')
       .populate('subjectId', 'name code');
 
     if (!form || !form.isActive) {
@@ -233,9 +244,9 @@ exports.getFormById = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const assignedTeacherId = form.assignedTeacher && form.assignedTeacher._id
-      ? form.assignedTeacher._id
-      : form.assignedTeacher;
+    const assignedTeacherIds = Array.isArray(form.assignedTeachers)
+      ? form.assignedTeachers.map((t) => (t && t._id ? t._id : t))
+      : (form.assignedTeachers ? [form.assignedTeachers._id || form.assignedTeachers] : []);
 
     if (normalizeRole(user.role) === 'admin' && String(form.createdBy) !== String(user._id)) {
       return res.status(403).json({ error: 'Forbidden' });
@@ -246,7 +257,7 @@ exports.getFormById = async (req, res, next) => {
     if (
       user.role === 'teacher' &&
       form.type !== 'complaint' &&
-      String(assignedTeacherId) !== String(user._id) &&
+      !assignedTeacherIds.some((id) => String(id) === String(user._id)) &&
       (!formSubjectId || !Array.isArray(user.subjects) || !user.subjects.some((subject) => String(subject) === String(formSubjectId)))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
@@ -255,7 +266,7 @@ exports.getFormById = async (req, res, next) => {
     if (
       user.role === 'student' &&
       form.type !== 'complaint' &&
-      (!user.teacherId || (String(assignedTeacherId) !== String(user.teacherId) && String(formSubjectId || '') !== String(user.subjectId || '')))
+      (!user.teacherId || (!assignedTeacherIds.some((id) => String(id) === String(user.teacherId)) && String(formSubjectId || '') !== String(user.subjectId || '')))
     ) {
       return res.status(403).json({ error: 'Forbidden' });
     }

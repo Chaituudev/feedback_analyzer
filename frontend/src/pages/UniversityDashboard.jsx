@@ -9,7 +9,7 @@ import api from '../services/api';
 const initialFormState = {
   title: '',
   questions: [{ text: '', answerType: 'paragraph', ratingScale: { min: '1', max: '5' } }],
-  assignedTeacher: '',
+  assignedTeachers: [],
   subjectId: ''
 };
 
@@ -257,7 +257,7 @@ export default function UniversityDashboard() {
         title: formState.title,
         type: 'public',
         questions,
-        assignedTeacher: formState.assignedTeacher || undefined,
+        assignedTeachers: (formState.assignedTeachers && formState.assignedTeachers.length) ? formState.assignedTeachers : undefined,
         subjectId: formState.subjectId || undefined
       });
 
@@ -347,7 +347,7 @@ export default function UniversityDashboard() {
           onSelectTemplate={(template) => setFormState({
             title: template.title,
             questions: template.questions.map((q) => ({ ...q, ratingScale: q.ratingScale || { min: '1', max: '5' } })),
-            assignedTeacher: formState.assignedTeacher || '',
+            assignedTeachers: formState.assignedTeachers || [],
             subjectId: formState.subjectId || ''
           })}
           onClose={() => setShowTemplateSelector(false)}
@@ -502,8 +502,11 @@ export default function UniversityDashboard() {
                     <button type="button" className="btn btn-secondary" onClick={() => setFormState((prev) => ({ ...prev, questions: [...prev.questions, { text: '', answerType: 'paragraph', ratingScale: { min: '1', max: '5' } }] }))}>+ Add Question</button>
                   </div>
 
-                  <label htmlFor="assignedTeacher">Assign Teacher</label>
-                  <select id="assignedTeacher" value={formState.assignedTeacher} onChange={(e) => setFormState((prev) => ({ ...prev, assignedTeacher: e.target.value }))}>
+                  <label htmlFor="assignedTeacher">Assign Teacher(s)</label>
+                  <select id="assignedTeacher" multiple value={formState.assignedTeachers} onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions).map((o) => o.value);
+                    setFormState((prev) => ({ ...prev, assignedTeachers: values }));
+                  }}>
                     <option value="">Select teacher</option>
                     {teachers.map((teacher) => (
                       <option key={teacher._id} value={teacher._id}>{teacher.name} ({teacher.teacherCode || 'pending code'})</option>
@@ -539,7 +542,7 @@ export default function UniversityDashboard() {
                   <p>{form.subjectId?.name || 'No subject'}</p>
                 </div>
                 <div className="row-actions">
-                  <span>{form.assignedTeacher?.name || form.subjectId?.name || 'Unassigned'}</span>
+                  <span>{(Array.isArray(form.assignedTeachers) && form.assignedTeachers.length) ? form.assignedTeachers.map(t => t.name).join(', ') : (form.subjectId?.name || 'Unassigned')}</span>
                   <button type="button" className="btn btn-danger" onClick={() => deleteForm(form._id)}>Delete</button>
                 </div>
               </div>

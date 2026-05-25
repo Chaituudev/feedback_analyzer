@@ -59,7 +59,7 @@ async function seedDatabase() {
       title: 'Student Feedback Form',
       questions: ['How satisfied are you with teaching?', 'Rate the course content', 'Rate infrastructure'],
       type: 'public',
-      assignedTeacher: teacher._id,
+      assignedTeachers: [teacher._id],
       createdBy: admin._id,
       isActive: true
     });

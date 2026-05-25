@@ -9,7 +9,7 @@ const formSchema = new mongoose.Schema({
     max: { type: Number, min: 1, default: 5 }
   },
   subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
-  assignedTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignedTeachers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
@@ -20,6 +20,6 @@ formSchema.pre('validate', function preValidate() {
   }
 });
 
-formSchema.index({ assignedTeacher: 1, type: 1 });
+formSchema.index({ assignedTeachers: 1, type: 1 });
 
 module.exports = mongoose.model('Form', formSchema);
