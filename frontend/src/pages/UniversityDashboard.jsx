@@ -49,6 +49,9 @@ export default function UniversityDashboard() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [selectedFeedbackIds, setSelectedFeedbackIds] = useState([]);
   const [manageFeedbackGroup, setManageFeedbackGroup] = useState('teacher');
+  const [manageFeedbackSort, setManageFeedbackSort] = useState('count-desc');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState('all');
+  const [questionSort, setQuestionSort] = useState('count-desc');
   const [universityCode, setUniversityCode] = useState('');
   const [adminName, setAdminName] = useState('');
   const [subjectName, setSubjectName] = useState('');
@@ -169,8 +172,39 @@ export default function UniversityDashboard() {
         sentiment,
         count: group.items.length
       };
+    }).sort((a, b) => {
+      if (manageFeedbackSort === 'count-asc') return a.count - b.count || a.label.localeCompare(b.label);
+      if (manageFeedbackSort === 'label-asc') return a.label.localeCompare(b.label);
+      if (manageFeedbackSort === 'label-desc') return b.label.localeCompare(a.label);
+      return b.count - a.count || a.label.localeCompare(b.label);
     })
-  ), [manageFeedbackGroups]);
+  ), [manageFeedbackGroups, manageFeedbackSort]);
+
+  const filteredQuestionGroups = useMemo(() => {
+    const next = questionGroups.filter((group) => {
+      if (questionTypeFilter === 'rating') return group.answerType === 'rating';
+      if (questionTypeFilter === 'paragraph') return group.answerType !== 'rating';
+      return true;
+    });
+
+    return next.sort((a, b) => {
+      if (questionSort === 'count-asc') return a.count - b.count || a.question.localeCompare(b.question);
+      if (questionSort === 'label-asc') return a.question.localeCompare(b.question);
+      if (questionSort === 'label-desc') return b.question.localeCompare(a.question);
+      if (questionSort === 'type') return a.answerType.localeCompare(b.answerType) || b.count - a.count || a.question.localeCompare(b.question);
+      return b.count - a.count || a.question.localeCompare(b.question);
+    });
+  }, [questionGroups, questionTypeFilter, questionSort]);
+
+  const questionAnalysisSummary = useMemo(() => {
+    return filteredQuestionGroups.reduce((acc, group) => {
+      acc.total += group.count;
+      acc.positive += group.sentiment.positive;
+      acc.neutral += group.sentiment.neutral;
+      acc.negative += group.sentiment.negative;
+      return acc;
+    }, { total: 0, positive: 0, neutral: 0, negative: 0 });
+  }, [filteredQuestionGroups]);
 
   const getFeedbackDetails = (item) => {
     const fields = [];
@@ -579,22 +613,50 @@ export default function UniversityDashboard() {
         {activeTab === 'feedback-charts' && (
           <section className="card">
             <div className="section-header">
-              <h2>Grouped Analysis</h2>
-              <span className="info">Choose a grouping to update the charts</span>
+              <h2>Overall Analysis</h2>
+              <span className="info">Choose a grouping and sort order to update the charts</span>
+            </div>
+
+            <div className="stats-row analysis-summary-grid" style={{ marginBottom: '1rem' }}>
+              <div className="card stat-card">
+                <strong>{manageFeedbackChartGroups.reduce((sum, group) => sum + group.count, 0)}</strong>
+                <span>feedbacks</span>
+              </div>
+              <div className="card stat-card">
+                <strong>{manageFeedbackChartGroups.length}</strong>
+                <span>groups</span>
+              </div>
             </div>
 
             <div className="analysis-filters" style={{ marginBottom: '1rem' }}>
-              <label htmlFor="manageFeedbackGroupChart">Grouping</label>
-              <select
-                id="manageFeedbackGroupChart"
-                value={manageFeedbackGroup}
-                onChange={(e) => setManageFeedbackGroup(e.target.value)}
-              >
-                <option value="teacher">Teacher</option>
-                <option value="subject">Subject</option>
-                <option value="class">Class</option>
-                <option value="form">Form</option>
-              </select>
+              <div className="filter-grid">
+                <div>
+                  <label htmlFor="manageFeedbackGroupChart">Grouping</label>
+                  <select
+                    id="manageFeedbackGroupChart"
+                    value={manageFeedbackGroup}
+                    onChange={(e) => setManageFeedbackGroup(e.target.value)}
+                  >
+                    <option value="teacher">Teacher</option>
+                    <option value="subject">Subject</option>
+                    <option value="class">Class</option>
+                    <option value="form">Form</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="manageFeedbackSort">Sort By</label>
+                  <select
+                    id="manageFeedbackSort"
+                    value={manageFeedbackSort}
+                    onChange={(e) => setManageFeedbackSort(e.target.value)}
+                  >
+                    <option value="count-desc">Most feedback</option>
+                    <option value="count-asc">Least feedback</option>
+                    <option value="label-asc">Name A-Z</option>
+                    <option value="label-desc">Name Z-A</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {manageFeedbackChartGroups.length === 0 && <p>No feedback available for charts.</p>}
@@ -617,13 +679,63 @@ export default function UniversityDashboard() {
           <section className="card">
             <div className="section-header">
               <h2>Question Wise Analysis</h2>
-              <span className="info">Question type is shown under each title</span>
+              <span className="info">Question type and overall analysis are shown for easy sorting</span>
             </div>
 
-            {questionGroups.length === 0 && <p>No question data available.</p>}
-            {questionGroups.length > 0 && (
+            <div className="stats-row analysis-summary-grid" style={{ marginBottom: '1rem' }}>
+              <div className="card stat-card">
+                <strong>{questionAnalysisSummary.total}</strong>
+                <span>responses</span>
+              </div>
+              <div className="card stat-card">
+                <strong>{questionAnalysisSummary.positive}</strong>
+                <span>positive</span>
+              </div>
+              <div className="card stat-card">
+                <strong>{questionAnalysisSummary.neutral}</strong>
+                <span>neutral</span>
+              </div>
+              <div className="card stat-card">
+                <strong>{questionAnalysisSummary.negative}</strong>
+                <span>negative</span>
+              </div>
+            </div>
+
+            <div className="analysis-filters" style={{ marginBottom: '1rem' }}>
+              <div className="filter-grid">
+                <div>
+                  <label htmlFor="questionTypeFilter">Question Type</label>
+                  <select
+                    id="questionTypeFilter"
+                    value={questionTypeFilter}
+                    onChange={(e) => setQuestionTypeFilter(e.target.value)}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="rating">Rating</option>
+                    <option value="paragraph">Paragraph</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="questionSort">Sort By</label>
+                  <select
+                    id="questionSort"
+                    value={questionSort}
+                    onChange={(e) => setQuestionSort(e.target.value)}
+                  >
+                    <option value="count-desc">Most answered</option>
+                    <option value="count-asc">Least answered</option>
+                    <option value="label-asc">Question A-Z</option>
+                    <option value="label-desc">Question Z-A</option>
+                    <option value="type">Type</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {filteredQuestionGroups.length === 0 && <p>No question data available.</p>}
+            {filteredQuestionGroups.length > 0 && (
               <div className="circle-chart-grid">
-                {questionGroups.map((group) => (
+                {filteredQuestionGroups.map((group) => (
                   <SentimentCircleChart
                     key={group.key}
                     title={group.question}
