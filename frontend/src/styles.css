@@ -295,6 +295,30 @@ textarea:focus {
   gap: 0.6rem;
 }
 
+.tab-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.tab-badge-suggest {
+  background: #0f766e;
+}
+
+.alert-banner {
+  border: 1px solid rgba(220, 38, 38, 0.14);
+  background: rgba(255, 245, 245, 0.9);
+  color: #7f1d1d;
+  padding: 0.6rem;
+  border-radius: 8px;
+  margin-bottom: 0.6rem;
+}
+
 .tab-btn {
   border: none;
   border-radius: 999px;

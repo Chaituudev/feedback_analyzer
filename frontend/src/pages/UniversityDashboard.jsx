@@ -115,6 +115,11 @@ export default function UniversityDashboard() {
     [feedbacks]
   );
 
+  const suggestionFeedbacks = useMemo(
+    () => feedbacks.filter((item) => Boolean(item.suggestion) || (Array.isArray(item.answers) && (item.answers || []).some(a => a?.answer && String(a.answer).trim().length > 0 && a?.question?.toLowerCase().includes('suggest')))),
+    [feedbacks]
+  );
+
   const questionGroups = useMemo(() => buildQuestionGroups(regularFeedbacks), [regularFeedbacks]);
 
   const manageFeedbackGroups = useMemo(() => {
@@ -382,9 +387,10 @@ export default function UniversityDashboard() {
           <div className="tabs-row">
             <button type="button" className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
             <button type="button" className={`tab-btn ${activeTab === 'forms' ? 'active' : ''}`} onClick={() => setActiveTab('forms')}>Form Builder</button>
-            <button type="button" className={`tab-btn ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>Manage Feedback</button>
+            <button type="button" className={`tab-btn ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>Manage Feedback{complaintFeedbacks.length > 0 && <span className="tab-badge">{complaintFeedbacks.length}</span>}</button>
             <button type="button" className={`tab-btn ${activeTab === 'feedback-charts' ? 'active' : ''}`} onClick={() => setActiveTab('feedback-charts')}>Grouped Analysis</button>
             <button type="button" className={`tab-btn ${activeTab === 'question-wise' ? 'active' : ''}`} onClick={() => setActiveTab('question-wise')}>Question Wise</button>
+            <button type="button" className={`tab-btn ${activeTab === 'suggestions' ? 'active' : ''}`} onClick={() => setActiveTab('suggestions')}>Suggestions{suggestionFeedbacks.length > 0 && <span className="tab-badge tab-badge-suggest">{suggestionFeedbacks.length}</span>}</button>
           </div>
         </section>
 
@@ -446,6 +452,11 @@ export default function UniversityDashboard() {
             <section className="card">
               <h2>Complaints</h2>
               {complaintFeedbacks.length === 0 && <p>No complaints submitted yet.</p>}
+              {complaintFeedbacks.length > 0 && (
+                <div className="alert-banner">
+                  <strong>Alert:</strong> There are {complaintFeedbacks.length} complaint(s). <button type="button" className="link-button" onClick={() => setActiveTab('feedback')}>Review now</button>
+                </div>
+              )}
               {complaintFeedbacks.map((item) => (
                 <div key={item._id} className="list-row">
                   <div>
