@@ -24,6 +24,7 @@ function toPublicUser(user) {
     role: normalizeRole(user.role),
     universityId: user.universityId,
     teacherId: user.teacherId,
+    teacherIds: user.teacherIds,
     className: user.className,
     subjectId: user.subjectId,
     universityCode: user.universityCode,
@@ -110,7 +111,8 @@ exports.me = async (req, res, next) => {
       .select('-password')
       .populate('subjects')
       .populate('subjectId')
-      .populate({ path: 'teacherId', populate: { path: 'subjects' } });
+      .populate({ path: 'teacherId', populate: { path: 'subjects' } })
+      .populate({ path: 'teacherIds', populate: { path: 'subjects' } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -132,6 +134,7 @@ exports.updateMe = async (req, res, next) => {
     const user = await User.findById(req.user.id)
       .select('-password')
       .populate({ path: 'teacherId', populate: { path: 'subjects' } })
+      .populate({ path: 'teacherIds', populate: { path: 'subjects' } })
       .populate('subjects');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -145,11 +148,18 @@ exports.updateMe = async (req, res, next) => {
       if (subjectId === null || subjectId === '') {
         user.subjectId = undefined;
       } else if (subjectId) {
-        const teacherSubjects = Array.isArray(user.teacherId?.subjects)
-          ? user.teacherId.subjects.map((item) => String(item?._id ?? item))
-          : [];
+        const teacherSources = [user.teacherId, ...(Array.isArray(user.teacherIds) ? user.teacherIds : [])].filter(Boolean);
+        const teacherSubjects = new Set();
 
-        if (!teacherSubjects.includes(String(subjectId))) {
+        for (const teacher of teacherSources) {
+          if (Array.isArray(teacher?.subjects)) {
+            for (const item of teacher.subjects) {
+              teacherSubjects.add(String(item?._id ?? item));
+            }
+          }
+        }
+
+        if (!teacherSubjects.has(String(subjectId))) {
           if (process.env.DEBUG_SUBJECT_VALIDATION === '1') {
             console.warn('Subject validation failed', { userId: user._id.toString(), subjectId, teacherSubjects });
             return res.status(400).json({ error: 'Selected subject is not available for your teacher', debug: { subjectId, teacherSubjects } });
@@ -168,7 +178,8 @@ exports.updateMe = async (req, res, next) => {
       .select('-password')
       .populate('subjects')
       .populate('subjectId')
-      .populate({ path: 'teacherId', populate: { path: 'subjects' } });
+      .populate({ path: 'teacherId', populate: { path: 'subjects' } })
+      .populate({ path: 'teacherIds', populate: { path: 'subjects' } });
     if (!updatedUser) {
       return res.status(404).json({ error: 'User not found' });
     }

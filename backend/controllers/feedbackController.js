@@ -155,7 +155,7 @@ async function getOrCreateComplaintForm(studentId, teacherId) {
   const existing = await Form.findOne({
     type: 'complaint',
     createdBy: studentId,
-    assignedTeacher: teacherId,
+    assignedTeachers: teacherId,
     isActive: true
   });
 
@@ -167,7 +167,7 @@ async function getOrCreateComplaintForm(studentId, teacherId) {
     title: 'Student Complaint',
     questions: ['What is your complaint?'],
     type: 'complaint',
-    assignedTeacher: teacherId,
+    assignedTeachers: [teacherId],
     createdBy: studentId,
     isActive: true
   });
@@ -181,7 +181,7 @@ exports.submitFeedback = async (req, res, next) => {
       return res.status(400).json({ error: 'Valid formId is required' });
     }
 
-    const student = await User.findById(req.user.id).select('role teacherId className subjectId');
+    const student = await User.findById(req.user.id).select('role teacherId teacherIds className subjectId');
     if (!student || student.role !== 'student') {
       return res.status(403).json({ error: 'Only students can submit feedback' });
     }
@@ -213,23 +213,40 @@ exports.submitFeedback = async (req, res, next) => {
     }
 
     let resolvedTeacherId = null;
+    // collect student's assigned teachers (support legacy `teacherId` and new `teacherIds`)
+    const studentTeacherIds = [];
+    if (isValidObjectId(student.teacherId)) studentTeacherIds.push(String(student.teacherId));
+    if (Array.isArray(student.teacherIds)) studentTeacherIds.push(...student.teacherIds.map((t) => String(t)));
+
+    const formAssigned = Array.isArray(form.assignedTeachers) ? form.assignedTeachers.map((t) => String(t)) : (form.assignedTeacher ? [String(form.assignedTeacher)] : []);
+
     if (form.type === 'complaint') {
-      resolvedTeacherId = student.teacherId || form.assignedTeacher || (isValidObjectId(teacherId) ? teacherId : null);
-      if (!resolvedTeacherId) {
-        return res.status(400).json({ error: 'Complaint requires a teacher assignment (teacherId)' });
+      if (isValidObjectId(teacherId)) {
+        // ensure provided teacherId is allowed
+        if (studentTeacherIds.includes(String(teacherId)) || formAssigned.includes(String(teacherId))) {
+          resolvedTeacherId = teacherId;
+        } else {
+          return res.status(403).json({ error: 'Selected teacher is not assigned to you or this form' });
+        }
+      } else if (studentTeacherIds.length === 1) {
+        resolvedTeacherId = studentTeacherIds[0];
+      } else if (formAssigned.length === 1) {
+        resolvedTeacherId = formAssigned[0];
+      } else {
+        return res.status(400).json({ error: 'Complaint requires a teacher assignment (teacherId) when multiple teachers are available' });
       }
     } else {
-      if (form.assignedTeacher) {
-        resolvedTeacherId = form.assignedTeacher;
-        if (!student.teacherId || String(student.teacherId) !== String(resolvedTeacherId)) {
-          return res.status(403).json({ error: 'You can only submit forms assigned to your teacher' });
+      if (formAssigned.length > 0) {
+        // student must be assigned to at least one of the form's teachers
+        const intersection = formAssigned.filter((t) => studentTeacherIds.includes(String(t)));
+        if (intersection.length === 0) {
+          return res.status(403).json({ error: 'You can only submit forms assigned to your teacher(s)' });
         }
-      } else if (student.teacherId) {
-        resolvedTeacherId = student.teacherId;
-      }
-
-      if (!resolvedTeacherId) {
-        return res.status(400).json({ error: 'Form is not assigned to any teacher' });
+        resolvedTeacherId = intersection[0];
+      } else if (studentTeacherIds.length > 0) {
+        resolvedTeacherId = studentTeacherIds[0];
+      } else {
+        return res.status(400).json({ error: 'Form is not assigned to any teacher and you are not assigned to a teacher' });
       }
     }
 
@@ -294,16 +311,21 @@ exports.submitComplaint = async (req, res, next) => {
       return res.status(400).json({ error: 'complaint is required' });
     }
 
-    const student = await User.findById(req.user.id).select('role teacherId className');
+    const student = await User.findById(req.user.id).select('role teacherId teacherIds className');
     if (!student || student.role !== 'student') {
       return res.status(403).json({ error: 'Only students can submit complaints' });
     }
 
-    if (!student.teacherId) {
+    // resolve teacher assignment for complaint: support `teacherId` or first of `teacherIds`
+    let teacherIdToUse = null;
+    if (isValidObjectId(student.teacherId)) teacherIdToUse = student.teacherId;
+    else if (Array.isArray(student.teacherIds) && student.teacherIds.length > 0) teacherIdToUse = student.teacherIds[0];
+
+    if (!teacherIdToUse) {
       return res.status(400).json({ error: 'You must be assigned to a teacher before submitting a complaint' });
     }
 
-    const teacher = await User.findById(student.teacherId).select('role _id');
+    const teacher = await User.findById(teacherIdToUse).select('role _id');
     if (!teacher || teacher.role !== 'teacher') {
       return res.status(400).json({ error: 'Assigned teacher is not available' });
     }

@@ -11,9 +11,10 @@ export default function StudentDashboard() {
   const [me, setMe] = useState(null);
   const [className, setClassName] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [teacherCode, setTeacherCode] = useState('');
+  const [teacherIdsInput, setTeacherIdsInput] = useState('');
   const [complaint, setComplaint] = useState('');
   const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [complaintTeacherId, setComplaintTeacherId] = useState('');
   const [submittingComplaint, setSubmittingComplaint] = useState(false);
   const [error, setError] = useState('');
   const [popup, setPopup] = useState({ open: false, title: '', message: '' });
@@ -37,6 +38,18 @@ export default function StudentDashboard() {
       setMe(meRes.data.user || null);
       setClassName(meRes.data.user?.className || '');
       setSubjectId(meRes.data.user?.subjectId?._id || meRes.data.user?.subjectId || '');
+      const meUser = meRes.data.user || null;
+      const teacherList = [];
+
+      if (meUser?.teacherId) teacherList.push(meUser.teacherId._id || meUser.teacherId);
+      if (Array.isArray(meUser?.teacherIds)) {
+        teacherList.push(...meUser.teacherIds.map((t) => t._id || t));
+      }
+
+      if (teacherList.length > 0) {
+        setComplaintTeacherId(String(teacherList[0]));
+        setTeacherIdsInput(teacherList.join(', '));
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -65,10 +78,20 @@ export default function StudentDashboard() {
     e.preventDefault();
     setError('');
 
+    const teacherIds = teacherIdsInput
+      .split(/[\n,]+/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (teacherIds.length === 0) {
+      setError('Enter at least one teacher ID');
+      return;
+    }
+
     try {
-      await api.post('/request/teacher', { teacherCode });
-      setPopup({ open: true, title: 'Request sent', message: 'Your teacher request was submitted successfully.' });
-      setTeacherCode('');
+      await api.post('/request/teacher', { teacherIds });
+      setPopup({ open: true, title: 'Request sent', message: 'Your teacher request(s) were submitted successfully.' });
+      setTeacherIdsInput('');
       await refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Request failed');
@@ -95,10 +118,13 @@ export default function StudentDashboard() {
     [forms, submittedFormIds]
   );
 
-  const availableSubjects = useMemo(
-    () => (Array.isArray(me?.teacherId?.subjects) ? me.teacherId.subjects : []),
-    [me]
-  );
+  const availableSubjects = useMemo(() => {
+    const teachers = [];
+    if (me?.teacherId) teachers.push(me.teacherId);
+    if (Array.isArray(me?.teacherIds)) teachers.push(...me.teacherIds);
+    const subjects = teachers.flatMap((t) => (Array.isArray(t?.subjects) ? t.subjects : []));
+    return subjects;
+  }, [me]);
 
   const submitComplaint = async (e) => {
     e.preventDefault();
@@ -106,7 +132,7 @@ export default function StudentDashboard() {
     setSubmittingComplaint(true);
 
     try {
-      await api.post('/feedback/complaint', { complaint });
+      await api.post('/feedback/complaint', { complaint, teacherId: complaintTeacherId || undefined });
       setComplaint('');
       setShowComplaintForm(false);
       setPopup({ open: true, title: 'Complaint submitted', message: 'Your complaint has been recorded.' });
@@ -160,14 +186,16 @@ export default function StudentDashboard() {
         <section className="card">
           <h2>Send Teacher Request</h2>
           <form className="stack" onSubmit={sendTeacherRequest}>
-            <label htmlFor="teacherCode">Teacher Code</label>
-            <input
-              id="teacherCode"
-              value={teacherCode}
-              onChange={(e) => setTeacherCode(e.target.value)}
-              placeholder="TCH-XXXXXX"
+            <label htmlFor="teacherIds">Teacher ID(s)</label>
+            <textarea
+              id="teacherIds"
+              value={teacherIdsInput}
+              onChange={(e) => setTeacherIdsInput(e.target.value)}
+              placeholder="Paste one or more teacher IDs, separated by commas or new lines"
+              rows="4"
               required
             />
+            <p className="info">Add multiple teachers by pasting their IDs on separate lines or separated by commas.</p>
             <button className="btn" type="submit">Send Request</button>
           </form>
         </section>
@@ -227,6 +255,17 @@ export default function StudentDashboard() {
                 onChange={(e) => setComplaint(e.target.value)}
                 required
               />
+              {(Array.isArray(me?.teacherIds) && me.teacherIds.length > 1) && (
+                <div>
+                  <label htmlFor="complaintTeacher">Select Teacher</label>
+                  <select id="complaintTeacher" value={complaintTeacherId} onChange={(e) => setComplaintTeacherId(e.target.value)} required>
+                    <option value="">Select teacher</option>
+                    {me.teacherIds.map((t) => (
+                      <option key={t._id || t} value={t._id || t}>{t.name || t}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button className="btn" type="submit" disabled={submittingComplaint}>
                 {submittingComplaint ? 'Submitting...' : 'Submit Complaint'}
               </button>

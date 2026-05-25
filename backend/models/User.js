@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'university', 'teacher', 'student'], required: true },
   universityId: { type: mongoose.Schema.Types.ObjectId, ref: 'University' },
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  teacherIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   className: { type: String, trim: true },
   subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
   universityCode: { type: String, unique: true, sparse: true },
