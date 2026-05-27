@@ -278,7 +278,7 @@ export default function UniversityDashboard() {
         assignedTeachers: formState.templateKey === 'infrastructure'
           ? undefined
           : ((formState.assignedTeachers && formState.assignedTeachers.length) ? formState.assignedTeachers : undefined),
-        subjectId: formState.subjectId || undefined
+        subjectId: formState.templateKey === 'infrastructure' ? undefined : (formState.subjectId || undefined)
       });
 
       setPopup({ open: true, title: 'Form created', message: 'Your feedback form is now live.' });
@@ -539,12 +539,16 @@ export default function UniversityDashboard() {
                   )}
 
                   <label htmlFor="subjectId">Assign Subject</label>
-                  <select id="subjectId" value={formState.subjectId} onChange={(e) => setFormState((prev) => ({ ...prev, subjectId: e.target.value }))}>
-                    <option value="">Select subject</option>
-                    {subjects.map((subject) => (
-                      <option key={subject._id} value={subject._id}>{subject.name} ({subject.code || 'no code'})</option>
-                    ))}
-                  </select>
+                  {formState.templateKey === 'infrastructure' ? (
+                    <p className="info">Infrastructure forms ignore subject assignment and will be available university-wide.</p>
+                  ) : (
+                    <select id="subjectId" value={formState.subjectId} onChange={(e) => setFormState((prev) => ({ ...prev, subjectId: e.target.value }))}>
+                      <option value="">Select subject</option>
+                      {subjects.map((subject) => (
+                        <option key={subject._id} value={subject._id}>{subject.name} ({subject.code || 'no code'})</option>
+                      ))}
+                    </select>
+                  )}
 
                   <div className="row-actions">
                     <button className="btn" type="submit">Create Form</button>

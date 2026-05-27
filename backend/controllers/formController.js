@@ -127,7 +127,7 @@ exports.createForm = async (req, res, next) => {
     }
 
     let subject = null;
-    if (hasSubject) {
+    if (!isInfrastructureForm && hasSubject) {
       subject = await Subject.findById(subjectId);
       if (!subject || String(subject.universityId) !== String(university._id)) {
         return res.status(403).json({ error: 'Subject does not belong to your university' });
@@ -173,7 +173,7 @@ exports.createForm = async (req, res, next) => {
       questions: normalizedQuestions,
       type,
       templateKey: normalizedTemplateKey || undefined,
-      subjectId: subject ? subject._id : undefined,
+      subjectId: isInfrastructureForm ? undefined : (subject ? subject._id : undefined),
       assignedTeachers: teacherDocs.length > 0 ? teacherDocs.map((t) => t._id) : undefined,
       createdBy: req.user.id,
       isActive: true
@@ -185,7 +185,7 @@ exports.createForm = async (req, res, next) => {
 
 exports.getForms = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('role teacherId subjectId subjects');
+    const user = await User.findById(req.user.id).select('role teacherId teacherIds subjectId subjects');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -205,11 +205,15 @@ exports.getForms = async (req, res, next) => {
         query.$or.push({ subjectId: { $in: subjectIds } });
       }
     } else if (user.role === 'student') {
-      if (!user.teacherId) {
+      const studentTeacherIds = [user.teacherId, ...(Array.isArray(user.teacherIds) ? user.teacherIds : [])]
+        .filter(Boolean)
+        .map((id) => String(id));
+
+      if (studentTeacherIds.length === 0) {
         return res.json({ forms: [] });
       }
 
-      const orFilters = [{ assignedTeachers: user.teacherId }];
+      const orFilters = [{ assignedTeachers: { $in: studentTeacherIds } }];
 
       if (user.subjectId) {
         orFilters.push({ subjectId: user.subjectId });
@@ -224,7 +228,9 @@ exports.getForms = async (req, res, next) => {
       .populate('subjectId', 'name code')
       .sort({ createdAt: -1 });
 
-    return res.json({ forms });
+    const uniqueForms = Array.from(new Map(forms.map((form) => [String(form._id), form])).values());
+
+    return res.json({ forms: uniqueForms });
   } catch (err) { next(err); }
 };
 

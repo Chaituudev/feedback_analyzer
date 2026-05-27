@@ -127,7 +127,7 @@ export default function StudentDashboard() {
   );
 
   const availableForms = useMemo(
-    () => forms.filter((form) => !submittedFormIds.has(form._id)),
+    () => Array.from(new Map(forms.filter((form) => !submittedFormIds.has(form._id)).map((form) => [form._id, form])).values()),
     [forms, submittedFormIds]
   );
 
