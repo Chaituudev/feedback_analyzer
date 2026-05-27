@@ -10,8 +10,18 @@ const initialFormState = {
   title: '',
   questions: [{ text: '', answerType: 'paragraph', ratingScale: { min: '1', max: '5' } }],
   assignedTeachers: [],
-  subjectId: ''
+  subjectId: '',
+  templateKey: ''
 };
+
+function isInfrastructureForm(item) {
+  return String(item?.formId?.templateKey || '').toLowerCase() === 'infrastructure'
+    || String(item?.formId?.title || '').toLowerCase().includes('infrastructure');
+}
+
+function getInfrastructureOwner(item) {
+  return item?.formId?.createdBy?.name || 'Admin';
+}
 
 function buildQuestionGroups(feedbacks) {
   const groups = new Map();
@@ -146,6 +156,13 @@ export default function UniversityDashboard() {
         };
       }
 
+      if (isInfrastructureForm(item)) {
+        return {
+          key: String(item.formId?.createdBy?._id || 'infrastructure-admin'),
+          label: getInfrastructureOwner(item)
+        };
+      }
+
       return {
         key: String(item.teacherId?._id || 'unassigned-teacher'),
         label: item.teacherId?.name || 'Unknown Teacher'
@@ -190,7 +207,7 @@ export default function UniversityDashboard() {
     const fields = [];
 
     if (manageFeedbackGroup !== 'teacher') {
-      fields.push(item.teacherId?.name || 'Unknown teacher');
+      fields.push(isInfrastructureForm(item) ? getInfrastructureOwner(item) : (item.teacherId?.name || 'Unknown teacher'));
     }
 
     if (manageFeedbackGroup !== 'subject') {
@@ -256,8 +273,11 @@ export default function UniversityDashboard() {
       await api.post('/form', {
         title: formState.title,
         type: 'public',
+        templateKey: formState.templateKey || undefined,
         questions,
-        assignedTeachers: (formState.assignedTeachers && formState.assignedTeachers.length) ? formState.assignedTeachers : undefined,
+        assignedTeachers: formState.templateKey === 'infrastructure'
+          ? undefined
+          : ((formState.assignedTeachers && formState.assignedTeachers.length) ? formState.assignedTeachers : undefined),
         subjectId: formState.subjectId || undefined
       });
 
@@ -348,7 +368,8 @@ export default function UniversityDashboard() {
             title: template.title,
             questions: template.questions.map((q) => ({ ...q, ratingScale: q.ratingScale || { min: '1', max: '5' } })),
             assignedTeachers: formState.assignedTeachers || [],
-            subjectId: formState.subjectId || ''
+            subjectId: formState.subjectId || '',
+            templateKey: template.id || ''
           })}
           onClose={() => setShowTemplateSelector(false)}
         />
@@ -503,15 +524,19 @@ export default function UniversityDashboard() {
                   </div>
 
                   <label htmlFor="assignedTeacher">Assign Teacher(s)</label>
-                  <select id="assignedTeacher" multiple value={formState.assignedTeachers} onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions).map((o) => o.value);
-                    setFormState((prev) => ({ ...prev, assignedTeachers: values }));
-                  }}>
-                    <option value="">Select teacher</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher._id} value={teacher._id}>{teacher.name} ({teacher.teacherCode || 'pending code'})</option>
-                    ))}
-                  </select>
+                  {formState.templateKey === 'infrastructure' ? (
+                    <p className="info">This infrastructure form will be auto-assigned to all teachers in your university and shown under your name in analysis.</p>
+                  ) : (
+                    <select id="assignedTeacher" multiple value={formState.assignedTeachers} onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions).map((o) => o.value);
+                      setFormState((prev) => ({ ...prev, assignedTeachers: values }));
+                    }}>
+                      <option value="">Select teacher</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher._id} value={teacher._id}>{teacher.name} ({teacher.teacherCode || 'pending code'})</option>
+                      ))}
+                    </select>
+                  )}
 
                   <label htmlFor="subjectId">Assign Subject</label>
                   <select id="subjectId" value={formState.subjectId} onChange={(e) => setFormState((prev) => ({ ...prev, subjectId: e.target.value }))}>
@@ -542,7 +567,7 @@ export default function UniversityDashboard() {
                   <p>{form.subjectId?.name || 'No subject'}</p>
                 </div>
                 <div className="row-actions">
-                  <span>{(Array.isArray(form.assignedTeachers) && form.assignedTeachers.length) ? form.assignedTeachers.map(t => t.name).join(', ') : (form.subjectId?.name || 'Unassigned')}</span>
+                  <span>{isInfrastructureForm(form) ? (form.createdBy?.name || 'Admin') : ((Array.isArray(form.assignedTeachers) && form.assignedTeachers.length) ? form.assignedTeachers.map(t => t.name).join(', ') : (form.subjectId?.name || 'Unassigned'))}</span>
                   <button type="button" className="btn btn-danger" onClick={() => deleteForm(form._id)}>Delete</button>
                 </div>
               </div>

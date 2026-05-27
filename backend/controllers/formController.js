@@ -93,6 +93,7 @@ exports.createForm = async (req, res, next) => {
       title,
       questions,
       type = 'public',
+      templateKey,
       assignedTeacher,
       assignedTeachers,
       subjectId
@@ -116,10 +117,12 @@ exports.createForm = async (req, res, next) => {
       return res.status(403).json({ error: 'Only university users can create forms' });
     }
 
+    const normalizedTemplateKey = isNonEmptyString(templateKey) ? templateKey.trim().toLowerCase() : '';
+    const isInfrastructureForm = normalizedTemplateKey === 'infrastructure';
     const hasAssignedTeacher = isValidObjectId(assignedTeacher) || (Array.isArray(assignedTeachers) && assignedTeachers.some(isValidObjectId));
     const hasSubject = isValidObjectId(subjectId);
 
-    if (!hasAssignedTeacher && !hasSubject) {
+    if (!isInfrastructureForm && !hasAssignedTeacher && !hasSubject) {
       return res.status(400).json({ error: 'assignedTeacher(s) or subjectId is required' });
     }
 
@@ -134,7 +137,10 @@ exports.createForm = async (req, res, next) => {
 
     // normalize assigned teachers: support single `assignedTeacher` or array `assignedTeachers`
     let normalizedAssignedTeachers = [];
-    if (Array.isArray(assignedTeachers) && assignedTeachers.length) {
+    if (isInfrastructureForm) {
+      const universityTeachers = await User.find({ role: 'teacher', universityId: university._id }).select('_id');
+      normalizedAssignedTeachers = universityTeachers.map((teacher) => teacher._id);
+    } else if (Array.isArray(assignedTeachers) && assignedTeachers.length) {
       normalizedAssignedTeachers = assignedTeachers.filter(isValidObjectId);
     } else if (isValidObjectId(assignedTeacher)) {
       normalizedAssignedTeachers = [assignedTeacher];
@@ -166,6 +172,7 @@ exports.createForm = async (req, res, next) => {
       title: title.trim(),
       questions: normalizedQuestions,
       type,
+      templateKey: normalizedTemplateKey || undefined,
       subjectId: subject ? subject._id : undefined,
       assignedTeachers: teacherDocs.length > 0 ? teacherDocs.map((t) => t._id) : undefined,
       createdBy: req.user.id,
@@ -212,6 +219,7 @@ exports.getForms = async (req, res, next) => {
     }
 
     const forms = await Form.find(query)
+      .populate('createdBy', 'name email role')
       .populate('assignedTeachers', 'name email teacherCode')
       .populate('subjectId', 'name code')
       .sort({ createdAt: -1 });
@@ -228,6 +236,7 @@ exports.getFormById = async (req, res, next) => {
     }
 
     const form = await Form.findById(formId)
+      .populate('createdBy', 'name email role')
       .populate('assignedTeachers', 'name email teacherCode')
       .populate('subjectId', 'name code');
 
@@ -322,7 +331,7 @@ exports.getFormTemplateById = async (req, res, next) => {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    return res.json({ template });
+    return res.json({ template: { id: templateId, ...template } });
   } catch (err) {
     next(err);
   }

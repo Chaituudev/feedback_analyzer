@@ -4,6 +4,7 @@ const formSchema = new mongoose.Schema({
   title: { type: String, required: true },
   questions: [{ type: mongoose.Schema.Types.Mixed, required: true }],
   type: { type: String, enum: ['public', 'secret', 'complaint'], required: true },
+  templateKey: { type: String, trim: true },
   ratingScale: {
     min: { type: Number, min: 1, default: 1 },
     max: { type: Number, min: 1, default: 5 }

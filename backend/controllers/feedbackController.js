@@ -418,7 +418,7 @@ exports.getFeedbacks = async (req, res, next) => {
     }
 
     const feedbacks = await Feedback.find(query)
-      .populate('formId', 'title type subjectId')
+      .populate({ path: 'formId', select: 'title type subjectId templateKey createdBy', populate: { path: 'createdBy', select: 'name email role' } })
       .populate('subjectId', 'name code')
       .populate('teacherId', 'name email teacherCode')
       .populate('studentId', 'name email')

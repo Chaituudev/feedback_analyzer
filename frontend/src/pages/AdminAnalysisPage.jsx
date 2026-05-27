@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import NavBar from '../components/NavBar';
@@ -17,8 +18,17 @@ function toId(value) {
   return value._id || value.id || '';
 }
 
+function isInfrastructureForm(item) {
+  return String(item?.formId?.templateKey || '').toLowerCase() === 'infrastructure'
+    || String(item?.formId?.title || '').toLowerCase().includes('infrastructure');
+}
+
+function getInfrastructureOwner(item) {
+  return item?.formId?.createdBy?.name || 'Admin';
+}
+
 function toLabel(item, dimension) {
-  if (dimension === 'teacher') return item.teacherId?.name || 'Unknown Teacher';
+  if (dimension === 'teacher') return isInfrastructureForm(item) ? getInfrastructureOwner(item) : (item.teacherId?.name || 'Unknown Teacher');
   if (dimension === 'subject') return item.subjectId?.name || item.formId?.subjectId?.name || 'Unassigned Subject';
   if (dimension === 'class') return item.className || 'Unassigned Class';
   if (dimension === 'form') return item.formId?.title || 'Untitled Form';
@@ -26,7 +36,7 @@ function toLabel(item, dimension) {
 }
 
 function toDimensionKey(item, dimension) {
-  if (dimension === 'teacher') return toId(item.teacherId) || 'none-teacher';
+  if (dimension === 'teacher') return isInfrastructureForm(item) ? (toId(item.formId?.createdBy) || 'none-teacher') : (toId(item.teacherId) || 'none-teacher');
   if (dimension === 'subject') return toId(item.subjectId) || toId(item.formId?.subjectId) || 'none-subject';
   if (dimension === 'class') return item.className || 'none-class';
   if (dimension === 'form') return toId(item.formId) || 'none-form';
